@@ -37,6 +37,49 @@ if [[ -r /etc/os-release ]]; then
     log "OS: ${PRETTY_NAME:-unknown}"
 fi
 
+# ---------- apt/dpkg 사전 점검 -----------------------------------------------
+# 자주 만나는 사전 함정 3종:
+#   1) 이전 apt/dpkg 가 중단되어 half-configured 상태로 남음 → dpkg --audit 가 항목을 출력
+#   2) 다른 apt 프로세스(unattended-upgrades 등) 가 dpkg 락 점유 중
+#   3) 디스크 부족으로 apt 가 실패
+APT_LOCK="/var/lib/dpkg/lock-frontend"
+
+log "apt/dpkg 사전 점검..."
+
+# half-configured 상태 감지: 출력이 있으면 비정상
+if sudo dpkg --audit 2>/dev/null | grep -q .; then
+    warn "dpkg 가 half-configured 상태입니다. 자동 복구를 시도합니다."
+    log "  → sudo dpkg --configure -a"
+    if ! sudo dpkg --configure -a; then
+        die "dpkg --configure -a 실패. 수동 진단 필요 (troubleshooting.md C4 참고)."
+    fi
+    sudo apt-get install -f -y || warn "apt-get install -f 가 일부 실패 — 계속 진행"
+    ok "dpkg 상태 복구 완료"
+fi
+
+# 락 점유 감지 (fuser 가 있으면 사용, 없으면 lsof, 둘 다 없으면 스킵)
+if [[ -e "$APT_LOCK" ]]; then
+    if command -v fuser >/dev/null 2>&1; then
+        if sudo fuser "$APT_LOCK" >/dev/null 2>&1; then
+            sudo fuser -v "$APT_LOCK" >&2 || true
+            die "$APT_LOCK 가 다른 프로세스에 점유 중. 위 PID 종료 또는 완료를 대기한 뒤 재실행."
+        fi
+    elif command -v lsof >/dev/null 2>&1; then
+        if sudo lsof "$APT_LOCK" >/dev/null 2>&1; then
+            sudo lsof "$APT_LOCK" >&2 || true
+            die "$APT_LOCK 가 다른 프로세스에 점유 중. 위 PID 종료 또는 완료를 대기한 뒤 재실행."
+        fi
+    fi
+fi
+
+# 디스크 여유 (루트 파티션 1GB 미만이면 경고)
+ROOT_AVAIL_KB="$(df -P / | awk 'NR==2 {print $4}')"
+if [[ "${ROOT_AVAIL_KB:-0}" -lt 1048576 ]]; then
+    warn "루트 파티션 여유 < 1GB. apt 가 중간에 실패할 수 있습니다."
+    warn "  → sudo apt-get clean; sudo journalctl --vacuum-size=200M"
+fi
+ok "사전 점검 통과"
+
 # ---------- 패키지 설치 -----------------------------------------------------
 APT_PKGS=(
     build-essential

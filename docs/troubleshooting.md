@@ -123,6 +123,60 @@ curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt-get install -y nodejs
 ```
 
+### C4. `bootstrap-pi.sh` 첫 단계에서 `dpkg가 중단되었습니다`
+
+**증상**:
+
+```
+E: dpkg가 중단되었습니다. 수동으로 'sudo dpkg --configure -a' 명령을 실행해 문제점을 바로잡으십시오.
+```
+
+**원인**: 이전 apt/dpkg 작업이 비정상 종료되어 패키지 DB 가 half-configured 상태. 본 저장소 스크립트와 무관한 시스템 상태 문제.
+
+**확인**: `sudo dpkg --audit` (비정상 항목이 출력되면 복구 필요)
+
+**해결**:
+
+```bash
+# 1) dpkg 상태 복구
+sudo dpkg --configure -a
+
+# 2) 깨진 의존성 정리
+sudo apt-get install -f -y
+sudo apt-get clean
+
+# 3) 부트스트랩 재실행 (idempotent — 안전)
+cd ~/dzp_main/program/openclaw-on-pi
+bash scripts/bootstrap-pi.sh
+```
+
+> 💡 bootstrap-pi.sh 는 위 상태를 자동 감지하여 `dpkg --configure -a` 를 시도한다. 그래도 실패하면 본 절차로 진행.
+
+### C5. apt 락 점유 (`Could not get lock /var/lib/dpkg/lock-frontend`)
+
+**증상**: 부트스트랩이 다음 메시지에서 멈춤
+
+```
+E: Could not get lock /var/lib/dpkg/lock-frontend - open (11: Resource temporarily unavailable)
+```
+
+**확인**: 점유 프로세스 식별
+
+```bash
+sudo fuser -v /var/lib/dpkg/lock-frontend
+# 또는
+sudo lsof /var/lib/dpkg/lock-frontend
+ps aux | grep -E 'apt|dpkg|unattended' | grep -v grep
+```
+
+**해결**: 흔한 원인은 `unattended-upgrades` 자동 업데이트. 다음 중 하나:
+
+- **대기**: 자동 업데이트가 끝날 때까지 (보통 1–5분)
+- **종료**: `sudo systemctl stop unattended-upgrades` 후 재실행 (재부팅 시 다시 켜짐)
+- **재부팅 직후 시도**: `sudo reboot` 후 1분 대기 후 재실행
+
+⚠️ 다른 apt/dpkg 가 실행 중인데 `rm /var/lib/dpkg/lock*` 으로 락을 강제 삭제하면 패키지 DB 가 망가진다 — 절대 금지.
+
 ---
 
 ## D. 메모리 / 성능
