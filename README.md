@@ -9,9 +9,12 @@
 ![Status](https://img.shields.io/badge/status-WIP%20·%20blueprint-orange)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
-> ⚠️ **프로젝트 상태: WIP (Work In Progress)**
-> 현재 저장소는 **설계 청사진(blueprint)** 단계입니다. 아래 디렉토리 구조에 명시된 스크립트·문서·예제 일부는 아직 작성 전입니다.
-> 진행 상황은 [로드맵](#로드맵) 을, 어떤 부분이 비어있는지는 [문서 인덱스](#문서-인덱스) 의 상태 표시를 확인하세요. 이슈·PR 환영합니다.
+> ⚠️ **프로젝트 상태: WIP (문서 / 스크립트 / 예제 코드 1차 작성 완료, HW 검증 대기)**
+> 핵심 문서·설정·셸 스크립트·예제 코드까지 모두 best-effort 로 작성되었습니다 (한국어). 다음 단계는 Pi 5 실 환경에서 부트스트랩 → OAuth → hello-agent 까지 끝-끝 검증입니다.
+> 각 항목의 상태는 [문서 인덱스](#문서-인덱스) · [레시피](#레시피) · [예제](#예제) 의 마커(✅/⚠/⏳) 를 보세요. 이슈·PR 환영합니다.
+>
+> **상태 마커 범례**:
+> ✅ 작성 완료 + Pi 에서 검증 ・ ⚠ 작성 완료, HW 미검증 (정적 리뷰만 통과) ・ ⏳ 스텁 / 미작성
 
 ---
 
@@ -159,25 +162,39 @@ OpenClaw 가 작업 큐를 돌리며, 실제 코드 작성·수정 단계에서 
 
 ## 문서 인덱스
 
-| # | 문서 | 내용 |
-|---|---|---|
-| 01 | [Prerequisites](docs/01-prerequisites.md) | HW · OS · 패키지 |
-| 02 | [Claude Code OAuth](docs/02-claude-code-oauth.md) | 헤드리스 OAuth 인증 트릭 |
-| 03 | [OpenClaw Install](docs/03-openclaw-install.md) | 설치 · 설정 · 첫 실행 |
-| 04 | [Integration](docs/04-integration.md) | 두 도구 엮기 |
-| 05 | [Headless Ops](docs/05-headless-ops.md) | tmux · systemd · 원격 |
-| 06 | [Performance](docs/06-performance-tuning.md) | ARM64 · 스왑 · NVMe |
-| ⚠ | [Troubleshooting](docs/troubleshooting.md) | 자주 깨지는 지점들 |
+| # | 문서 | 상태 | 내용 |
+|---|---|:-:|---|
+| 01 | [Prerequisites](docs/01-prerequisites.md) | ⚠ | HW · OS · 패키지 |
+| 02 | [Claude Code OAuth](docs/02-claude-code-oauth.md) | ⚠ | 헤드리스 OAuth 인증 트릭 |
+| 03 | [OpenClaw Install](docs/03-openclaw-install.md) | ⚠ | 설치 · 설정 · 첫 실행 |
+| 04 | [Integration](docs/04-integration.md) | ⚠ | 두 도구 엮기 |
+| 05 | [Headless Ops](docs/05-headless-ops.md) | ⚠ | tmux · systemd · 원격 |
+| 06 | [Performance](docs/06-performance-tuning.md) | ⚠ | ARM64 · 스왑 · NVMe |
+| ⚠ | [Troubleshooting](docs/troubleshooting.md) | ⚠ | 자주 깨지는 지점들 |
+| 📋 | [설계 / 작성 계획](docs/superpowers/specs/2026-05-16-openclaw-on-pi-design.md) | ✅ | 본 저장소의 단계별 작성 plan |
 
 ---
 
 ## 레시피
 
-- [자율 코딩 루프 24/7](recipes/auto-coding-loop.md)
-- [외부에서 Pi 에이전트 조작 (Remote vibe-coding)](recipes/remote-vibe-coding.md)
-- [cron 기반 스케줄 작업](recipes/scheduled-agent-tasks.md)
-- [멀티 에이전트 오케스트레이션](recipes/multi-agent-orchestration.md)
-- [IoT 브릿지 — GPIO / MQTT 다루기](recipes/iot-bridge.md)
+| 상태 | 레시피 |
+|:-:|---|
+| ⚠ | [자율 코딩 루프 24/7](recipes/auto-coding-loop.md) |
+| ⚠ | [외부에서 Pi 에이전트 조작 (Remote vibe-coding)](recipes/remote-vibe-coding.md) |
+| ⚠ | [cron 기반 스케줄 작업](recipes/scheduled-agent-tasks.md) |
+| ⚠ | [멀티 에이전트 오케스트레이션](recipes/multi-agent-orchestration.md) |
+| ⚠ | [IoT 브릿지 — GPIO / MQTT 다루기](recipes/iot-bridge.md) |
+
+### 예제
+
+| 상태 | 예제 |
+|:-:|---|
+| ⚠ | [hello-agent](examples/hello-agent/) — 끝-끝 최소 동작 (tasks.yaml + CLAUDE.md + run.sh) |
+| ⚠ | [github-pr-bot](examples/github-pr-bot/) — 이슈 → PR 자동화 (pick/post + 권한 화이트리스트) |
+| ⚠ | [log-triage](examples/log-triage/) — journald 로그 LLM 트리아지 (마스킹 + 채널 라우팅 + 패턴 캐시) |
+
+> 예제 모두 best-effort 작성 완료. 실 Pi 검증 후 ✅ 로 승격.
+> github-pr-bot / log-triage 는 첫 가동 시 반드시 dry-run / `LOG_TRIAGE_PUBLISH=stdout` 으로 1주일 그림자 가동.
 
 ---
 
@@ -242,10 +259,17 @@ A. Anthropic 측에서 스로틀링 됩니다. 에이전트 큐에서 백오프�
 
 ## 로드맵
 
-- [x] 베이스 설치 스크립트
-- [ ] OpenClaw + Claude Code 최소 통합 예제
-- [ ] systemd 워치독
-- [ ] OAuth 토큰 자동 갱신
+- [x] 베이스 설치 스크립트 ([scripts/](scripts/))
+- [x] systemd 유닛 (본체 + 워치독) ([configs/systemd/](configs/systemd/))
+- [x] 핵심 문서 1차 작성 (docs/01–06 + troubleshooting)
+- [x] 5종 레시피 1차 작성 ([recipes/](recipes/))
+- [x] OpenClaw + Claude Code 최소 통합 예제 코드 ([hello-agent](examples/hello-agent/))
+- [x] github-pr-bot 코드 ([github-pr-bot](examples/github-pr-bot/))
+- [x] log-triage 코드 + 마스킹 룰셋 ([log-triage](examples/log-triage/))
+- [ ] Pi 5 (8GB) 실 환경에서 부트스트랩 → OAuth → hello-agent 끝-끝 검증
+- [ ] github-pr-bot 1주 production-shadow → 활성화
+- [ ] log-triage 마스킹 룰셋 실 로그로 보강 + 프롬프트 튜닝
+- [ ] OAuth 토큰 자동 갱신 RFC
 - [ ] 멀티 에이전트 큐 매니저
 - [ ] Pi 5 NPU HAT 활용 검토
 - [ ] 한글 / 영문 문서 페어 정리

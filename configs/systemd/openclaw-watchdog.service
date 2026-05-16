@@ -1,0 +1,31 @@
+[Unit]
+Description=OpenClaw watchdog (health, token expiry, disk, memory)
+Documentation=https://github.com/YawnsDuzin/openclaw-on-pi
+After=openclaw.service
+PartOf=openclaw.service
+
+[Service]
+Type=oneshot
+User=openclaw
+Group=openclaw
+ExecStart=/opt/openclaw/scripts/healthcheck.sh
+StandardOutput=journal
+StandardError=journal
+
+# 실패 시 openclaw 본체 재시작.
+# (직접 재시작 권한이 필요하므로 /etc/sudoers.d 분리 정책 또는 systemd 권한 정책 적용)
+ExecStopPost=/bin/sh -c 'test "$EXIT_STATUS" = "0" || systemctl restart openclaw.service'
+
+[Install]
+# 단독 실행 대신 timer 와 짝지어 사용.
+# /etc/systemd/system/openclaw-watchdog.timer 예시:
+#
+#   [Timer]
+#   OnBootSec=2min
+#   OnUnitActiveSec=5min
+#   AccuracySec=30s
+#   Unit=openclaw-watchdog.service
+#
+#   [Install]
+#   WantedBy=timers.target
+WantedBy=multi-user.target

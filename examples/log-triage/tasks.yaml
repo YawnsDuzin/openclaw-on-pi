@@ -1,0 +1,46 @@
+# OpenClaw task 정의 — log-triage
+#
+# 매시간(또는 사용자 cron) journald + 애플리케이션 로그를 수집·마스킹·요약하고
+# 결과를 ntfy/Slack/Issue 로 발행한다.
+#
+# 환경변수:
+#   LOG_TRIAGE_SINCE       조회 범위 (journalctl --since 형식, 기본 "1 hour ago")
+#   LOG_TRIAGE_PRIORITY    journalctl -p 인자 (기본: warning)
+#   LOG_TRIAGE_UNITS       콤마 구분 유닛 필터 (선택, 비우면 전체)
+#   LOG_TRIAGE_STATE_DIR   상태 디렉토리 (기본: /var/lib/log-triage)
+#   LOG_TRIAGE_PUBLISH     publish 채널 (ntfy|slack|issue|stdout, 기본: stdout)
+#   NTFY_TOPIC             publish=ntfy 일 때 필수
+#   SLACK_WEBHOOK_URL      publish=slack 일 때 필수
+#   GITHUB_REPO            publish=issue 일 때 필수 (user/repo)
+
+- name: hourly-triage
+  queue: low
+  workdir: ${LOG_TRIAGE_WORKDIR:-/tmp/log-triage-work}
+  schedule: "5 * * * *"            # 매시 5분
+
+  pre: |
+    set -euo pipefail
+    "${OPENCLAW_TASK_DIR}/scripts/collect-logs.sh" \
+        > /tmp/log-triage-work/input.txt
+
+  prompt_file: prompts/triage.md   # OpenClaw 가 파일을 읽어 prompt 로 사용
+
+  # OpenClaw 가 prompt 호출 시 입력 첨부 — Claude Code 의 --add-dir 로 전달됨
+  inputs:
+    - /tmp/log-triage-work/input.txt
+    - prompts/triage.md
+    - "${LOG_TRIAGE_STATE_DIR:-/var/lib/log-triage}/seen-patterns.json"
+
+  # Claude 응답이 JSON 으로 와야 하므로 검증 + 발행
+  post: |
+    set -euo pipefail
+    OUT="/tmp/log-triage-work/output.json"
+    [[ -s "$OUT" ]] || { echo "출력 비어있음"; exit 1; }
+    jq -e '.summary and .issues' "$OUT" >/dev/null \
+        || { echo "JSON 스키마 위반"; exit 1; }
+    "${OPENCLAW_TASK_DIR}/scripts/publish.sh" "$OUT"
+
+  verify: |
+    set -euo pipefail
+    test -f /tmp/log-triage-work/output.json
+    test -f /tmp/log-triage-work/published.flag

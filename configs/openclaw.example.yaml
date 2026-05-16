@@ -1,0 +1,58 @@
+# OpenClaw configuration — example
+#
+# 실제 사용 시 `openclaw.yaml` 로 복사 후 환경에 맞게 수정.
+# `openclaw.yaml` 은 .gitignore 로 제외되어 있다.
+#
+# 본 파일은 README 의 청사진을 따른 참조용 스키마이며,
+# 실제 OpenClaw 릴리스의 키 이름과 일부 다를 수 있다.
+# 정확한 스키마는 OpenClaw 본 저장소의 문서를 우선한다.
+
+agent:
+  name: pi-openclaw
+  workdir: /var/lib/openclaw/work
+  log_level: info               # debug | info | warn | error
+
+# 코드 작성·수정 단계만 Claude Code 에 위임.
+runtime:
+  claude_code:
+    binary: claude              # PATH 에 있어야 함 (install-claude-code.sh 가 설치)
+    settings: ~/.claude/settings.json
+    # 모델은 settings.json 에서 핀하는 것을 권장하지만,
+    # 작업별로 오버라이드하고 싶으면 여기서 지정.
+    model: claude-sonnet-4-6
+    # 1회 호출당 timeout (초). 헤드리스 환경에서 무한 대기 방지.
+    timeout_seconds: 600
+
+# 작업 큐 정의. 큐는 우선순위(priority) 가 낮을수록 먼저 처리.
+queues:
+  - name: default
+    priority: 100
+    max_concurrent: 1           # Pi 4 4GB 는 1, Pi 5 8GB 는 2~3 까지 시도 가능
+  - name: low
+    priority: 200
+    max_concurrent: 1
+
+# 정기 작업. cron 표현식 또는 systemd timer 와 병행 가능.
+schedules:
+  - name: nightly-pr-triage
+    cron: "0 3 * * *"           # 매일 03:00
+    queue: low
+    task: github-pr-triage
+    payload:
+      repo: youruser/yourrepo
+      label_filter: triage
+
+# 워치독 — 큐 처리 정체 / 토큰 만료 / 디스크 부족 시 알림.
+watchdog:
+  enabled: true
+  check_interval_seconds: 300
+  alerts:
+    - type: log                  # log | webhook | email
+    # - type: webhook
+    #   url: https://example.com/hook
+    #   secret_env: WATCHDOG_HMAC_SECRET
+
+# 외부 시크릿은 환경변수로만. 절대 본 파일에 직접 쓰지 말 것.
+secrets:
+  github_token_env: GITHUB_TOKEN
+  # claude_oauth: ~/.claude/credentials.json 을 사용 (별도 지정 불필요)
