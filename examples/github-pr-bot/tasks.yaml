@@ -1,0 +1,56 @@
+# OpenClaw task 정의 — github-pr-bot
+#
+# 라벨 'automation:cleanup' 이 붙은 열린 이슈를 1건 골라
+# 작은 변경 PR 을 자동 생성한다.
+#
+# 환경변수:
+#   PR_BOT_REPO          대상 저장소 (예: youruser/yourrepo)
+#   PR_BOT_LABEL         트리거 라벨 (기본: automation:cleanup)
+#   PR_BOT_BRANCH_PREFIX 새 브랜치 prefix (기본: bot/auto)
+#   GITHUB_TOKEN_FILE    PAT 파일 경로 (기본: ~/.openclaw-secrets/github.env)
+#   PR_BOT_DRY_RUN       1 이면 PR 만들지 않고 본문만 stdout (기본: 0)
+
+- name: cleanup-issue
+  queue: low
+  workdir: ${PR_BOT_WORKDIR:-/tmp/pr-bot-work}
+  schedule: "0 */6 * * *"          # 6시간마다
+
+  # 사전 단계 — Claude 호출 전에 셸로 처리
+  pre: |
+    set -euo pipefail
+    : "${PR_BOT_REPO:?PR_BOT_REPO 미설정}"
+    "${OPENCLAW_TASK_DIR}/scripts/pick-issue.sh"
+
+  # Claude Code 에 위임할 prompt
+  prompt: |
+    /tmp/pr-bot-state/picked-issue.json 에 처리할 이슈 정보가 있다.
+    JSON 의 필드:
+      - number: 이슈 번호
+      - title: 제목
+      - body: 본문
+      - branch: 사용할 브랜치 이름
+
+    절차:
+      1) git checkout -b <branch> (이미 있으면 checkout)
+      2) 이슈 본문이 요구하는 작은 변경을 적용 — 변경 라인 30 이하 권장
+      3) 변경 라인이 0 이면 작업 중단하고 종료 코드 2 (PR 만들지 않음)
+      4) git add -A && git commit -m "fix(#<number>): <짧은 요약>"
+      5) git push origin <branch>
+      6) bash "${OPENCLAW_TASK_DIR}/scripts/post-pr.sh" <number> <branch>
+
+    제약:
+      - .github/, scripts/, *.lock, package-lock.json 은 절대 수정 금지
+      - 새 의존성 추가 금지 (package.json, requirements.txt 등 종속성 파일 수정 금지)
+      - 외부 네트워크 호출 금지 (curl, wget) — gh CLI 만 허용
+      - main 브랜치 직접 푸시 절대 금지
+
+  # 결과 검증
+  verify: |
+    set -euo pipefail
+    [[ -f /tmp/pr-bot-state/last-pr.txt ]] || exit 0   # dry-run 또는 변경 없음
+    PR_URL="$(cat /tmp/pr-bot-state/last-pr.txt)"
+    [[ "$PR_URL" =~ ^https://github\.com/.+/pull/[0-9]+$ ]]
+
+  # 실패 시 dead-letter
+  on_failure:
+    requeue: false                   # 같은 이슈를 무한 재시도하지 않음
