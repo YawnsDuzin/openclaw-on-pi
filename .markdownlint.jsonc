@@ -1,0 +1,9 @@
+{
+  // 한국어 문서 + 코드 블록 위주이므로 일부 룰을 완화한다.
+  "default": true,
+  "MD013": false,           // 라인 길이 제한 해제 (한글은 wrap 기준 모호)
+  "MD033": false,           // inline HTML 허용 (<br>, <details> 등)
+  "MD041": false,           // 첫 줄 H1 강제 해제 (frontmatter 허용)
+  "MD024": { "siblings_only": true },
+  "MD025": { "front_matter_title": "" }
+}

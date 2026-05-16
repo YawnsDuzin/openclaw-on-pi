@@ -1,0 +1,52 @@
+name: 🍳 레시피 제안
+description: 새로운 활용 시나리오 / 튜토리얼 추가 제안.
+title: "[recipe] "
+labels: ["recipe"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        기존 [recipes/](../recipes/) 와 중복되지 않는지 먼저 확인해주세요.
+
+  - type: input
+    id: title
+    attributes:
+      label: 레시피 제목
+      placeholder: "예: 야간에만 OpenClaw 로 GitHub 이슈 트리아지"
+    validations:
+      required: true
+
+  - type: textarea
+    id: scenario
+    attributes:
+      label: 시나리오
+      description: 누가, 언제, 왜 이 레시피를 쓰는가?
+    validations:
+      required: true
+
+  - type: textarea
+    id: requirements
+    attributes:
+      label: 필요 조건
+      description: HW / 외부 서비스 / 권한 등
+    validations:
+      required: true
+
+  - type: textarea
+    id: outline
+    attributes:
+      label: 단계 개요
+      description: 알고 있는 만큼 단계별로 적어주세요. 비어 있어도 OK.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: contribution
+    attributes:
+      label: 기여 의향
+      options:
+        - "직접 PR 보낼 예정"
+        - "초안만 제안, 작성은 메인테이너에게"
+        - "아이디어만 던짐"
+    validations:
+      required: true
