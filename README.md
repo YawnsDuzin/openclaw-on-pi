@@ -228,9 +228,9 @@ OpenClaw 의 *주* 인터페이스는 **메시징 채널**: 사용자가 Telegra
 
 | 상태 | 예제 |
 |:-:|---|
-| ⚠ | [hello-agent](examples/hello-agent/) — 끝-끝 최소 동작 (tasks.yaml + CLAUDE.md + run.sh) |
-| ⚠ | [github-pr-bot](examples/github-pr-bot/) — 이슈 → PR 자동화 (pick/post + 권한 화이트리스트) |
-| ⚠ | [log-triage](examples/log-triage/) — journald 로그 LLM 트리아지 (마스킹 + 채널 라우팅 + 패턴 캐시) |
+| ⚠ | [hello-agent](examples/hello-agent/) — 끝-끝 최소 동작 (SKILL.md + run.sh, 결정적 응답 검증) |
+| ⚠ | [github-pr-bot](examples/github-pr-bot/) — 이슈 → PR 자동화 SKILL.md (`/cleanup-issue` 슬래시 명령 + cron) |
+| ⚠ | [log-triage](examples/log-triage/) — journald 로그 LLM 트리아지 SKILL.md (마스킹 + 채널 라우팅 + 패턴 캐시) |
 
 > 예제 모두 best-effort 작성 완료. 실 Pi 검증 후 ✅ 로 승격.
 > github-pr-bot / log-triage 는 첫 가동 시 반드시 dry-run / `LOG_TRIAGE_PUBLISH=stdout` 으로 1주일 그림자 가동.

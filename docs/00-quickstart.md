@@ -301,29 +301,23 @@ journalctl --user -u openclaw -n 30 --no-pager | grep -i 'skill.*hello' && echo 
 
 ### 4-2. systemd 전환 — [`docs/05-headless-ops.md`](./05-headless-ops.md)
 
-`docs/05` §2 절을 그대로 따라가면 됩니다 — 전용 사용자 생성 / 디렉토리 권한 / 유닛 설치 / timer 활성화. 핵심 명령만:
+**권장 (user 모드)**: 3-2 의 `openclaw onboard --install-daemon` 가 이미 user systemd 유닛을 만들었다. 그저 활성화만:
 
 ```bash
-# 사용자 + 디렉토리 (자세한 옵션은 docs/05 §2-1)
-sudo useradd -r -m -d /opt/openclaw -s /usr/sbin/nologin openclaw
-sudo mkdir -p /opt/openclaw/scripts /etc/openclaw /var/lib/openclaw /var/log/openclaw
-sudo chown -R openclaw:openclaw /opt/openclaw /var/lib/openclaw /var/log/openclaw
+systemctl --user start openclaw
+systemctl --user enable openclaw
 
-# 유닛 설치
-sudo cp configs/systemd/openclaw.service          /etc/systemd/system/
-sudo cp configs/systemd/openclaw-watchdog.service /etc/systemd/system/
-# (timer 정의는 docs/05 §2-2 참고)
-
-sudo systemd-analyze verify /etc/systemd/system/openclaw*.service
-sudo systemctl daemon-reload
-sudo systemctl enable --now openclaw.service openclaw-watchdog.timer
+# 로그아웃해도 살아있게
+sudo loginctl enable-linger "$USER"
 ```
 
-✅ 체크:
+**시스템 모드** (가족 공용 / 격리 필요): [`docs/05` §2-1](./05-headless-ops.md#2-1-시스템-모드-사전-준비) 의 전용 사용자 + `/opt/openclaw` 절차 — 1인 운영이면 user 모드가 단순하니 그쪽으로.
+
+✅ 체크 (user 모드 기준):
 
 ```bash
-systemctl is-active openclaw.service           # active
-journalctl -u openclaw.service -n 20 --no-pager
+systemctl --user is-active openclaw            # active
+journalctl --user -u openclaw -n 20 --no-pager
 bash scripts/healthcheck.sh && echo "HC OK"    # 종료 코드 0 또는 2(warn-only)
 ```
 

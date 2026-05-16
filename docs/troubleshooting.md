@@ -63,9 +63,10 @@ sudo systemctl restart systemd-timesyncd
 
 **해결**: 거의 항상 `EnvironmentFile`, `ExecStart` 경로, 또는 사용자 권한 문제. 다음 순서로:
 
-1. `systemd-analyze verify /etc/systemd/system/openclaw.service`
-2. `sudo -u openclaw bash -lc '/usr/bin/openclaw run --help'` — 사용자 자격으로 직접 실행
+1. `systemd-analyze verify /etc/systemd/system/openclaw.service` (시스템 모드) 또는 `systemd-analyze --user verify ~/.config/systemd/user/openclaw.service` (user 모드)
+2. `sudo -u openclaw bash -lc 'openclaw gateway --help'` — 사용자 자격으로 직접 실행
 3. `EnvironmentFile=-/etc/openclaw/openclaw.env` 의 `-` (선두 dash) 가 빠지면 파일 부재 시 실패
+4. `ExecStart` 의 PATH 에 `openclaw` 바이너리 위치가 포함되어 있는지 — system 모드는 `/opt/openclaw/.npm-global/bin/openclaw`, user 모드는 `$HOME/.npm-global/bin/openclaw`
 
 ### B2. `Failed to start due to access denied`
 
@@ -233,7 +234,7 @@ source ~/.bashrc
 
 **해결**:
 
-- 동시 실행 줄이기: `openclaw.yaml` 의 `queues[].max_concurrent: 1`
+- 동시 실행 줄이기: `~/.openclaw/openclaw.json` 의 `agents.list[*].concurrency: 1` (또는 단일 에이전트면 `agents.defaults.concurrency: 1`)
 - zram 활성화 ([06-performance-tuning](./06-performance-tuning.md) §4-1)
 - 모델 다운그레이드 (Sonnet → Haiku) — 작업 성격에 따라
 
@@ -271,7 +272,7 @@ sudo find /var/log/openclaw -name "*.log.*.gz" -mtime +14 -delete
 
 **확인**: 같은 명령을 `--max-turns 1` 로 다시 실행
 
-**해결**: 설정에 timeout 을 명시 (`openclaw.yaml` 의 `runtime.claude_code.timeout_seconds`). systemd 유닛의 `TimeoutStopSec` 도 비현실적으로 길지 않은지 확인.
+**해결**: 설정에 timeout 을 명시 (`~/.openclaw/openclaw.json` 의 `agents.defaults.timeoutSeconds` 또는 스킬 SKILL.md 의 frontmatter `metadata.openclaw.timeoutSeconds`). systemd 유닛의 `TimeoutStopSec` 도 비현실적으로 길지 않은지 확인.
 
 ### E2. 도구 사용이 거부됨 (`permission denied`)
 
