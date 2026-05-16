@@ -94,7 +94,7 @@ cd /home/dzp/dzp_main/program/openclaw-on-pi
 bash scripts/bootstrap-pi.sh
 ```
 
-스크립트가 하는 일: apt 업데이트, 핵심 패키지 설치, Node.js 20 LTS, `~/.claude` (700) / `/home/dzp/dzp_main/program/openclaw-work` / `~/.local/bin` 디렉토리 준비.
+스크립트가 하는 일: apt 업데이트, 핵심 패키지 설치, Node.js 22 LTS (OpenClaw 최소 22.16 요구), `~/.claude` (700) / `/home/dzp/dzp_main/program/openclaw-work` / `~/.local/bin` 디렉토리 준비.
 
 ✅ 체크:
 
@@ -353,7 +353,7 @@ bash scripts/healthcheck.sh && echo "HC OK"    # 종료 코드 0 또는 2(warn-o
 |---|---|
 | OAuth / 인증 / 토큰 | [`troubleshooting.md`](./troubleshooting.md) **A절** |
 | systemd 유닛 / 워치독 | **B절** |
-| npm / pip / Node 빌드 | **C절** |
+| npm / Node 빌드 / OpenClaw 설치 | **C절** |
 | OOM / throttle / 디스크 | **D절** |
 | `claude` 호출 / 큐 / 권한 거부 | **E절** |
 | 네트워크 / DNS / SSL | **F절** |

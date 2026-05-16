@@ -26,10 +26,10 @@ body:
       required: true
 
   - type: input
-    id: claude-version
+    id: node-version
     attributes:
-      label: Claude Code 버전
-      description: "`claude --version` 결과"
+      label: Node.js 버전
+      description: "`node --version` 결과 (OpenClaw 최소 22.16)"
     validations:
       required: true
 
@@ -37,6 +37,26 @@ body:
     id: openclaw-version
     attributes:
       label: OpenClaw 버전
+      description: "`openclaw --version` 결과 (최소 안전 버전 2026.2.6, CVE-2026-25253 패치)"
+    validations:
+      required: true
+
+  - type: input
+    id: claude-version
+    attributes:
+      label: Claude Code CLI 버전 (선택)
+      description: "`claude --version` 결과. vibe-coding 용. OpenClaw 와는 별 도구."
+    validations:
+      required: false
+
+  - type: dropdown
+    id: install-mode
+    attributes:
+      label: 설치 모드
+      options:
+        - "user 모드 (openclaw onboard --install-daemon)"
+        - "system 모드 (/opt/openclaw)"
+        - "foreground only (systemd 없음)"
     validations:
       required: false
 

@@ -1,6 +1,8 @@
-# 02 — Claude Code OAuth (헤드리스 인증)
+# 02 — Claude Code OAuth (헤드리스 인증, *선택*)
 
-> 브라우저가 없는 Pi 에서 Claude Code 의 OAuth 인증을 받는 방법.
+> 브라우저가 없는 Pi 에서 **Claude Code CLI** (사람이 직접 vibe-coding 할 때 쓰는 별도 도구) 의 OAuth 인증을 받는 방법.
+
+> 📌 **OpenClaw 의 모델 호출과는 무관**: OpenClaw 는 BYOK 라 자체 API key 를 직접 받아 호출합니다 (Claude OAuth 토큰을 쓰지 않음). 본 절차는 사람이 SSH 로 Pi 에 들어가서 `claude -p "..."` 로 직접 작업할 때만 필요합니다. OpenClaw 만 쓸 거면 이 챕터는 스킵 가능.
 
 ⚠ 검증 환경: Claude Code CLI (npm `@anthropic-ai/claude-code`) 안정 버전 기준. 향후 CLI 가 디바이스 코드 플로우(device code flow) 를 추가하면 본 문서의 "SSH 역포트포워딩 트릭" 은 불필요해진다.
 

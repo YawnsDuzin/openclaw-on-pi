@@ -21,9 +21,9 @@
 ## 왜 이걸 만드는가
 
 - 데스크탑/노트북 켜둘 필요 없이 **Pi 한 대로 자율 에이전트 상시 가동**
-- **Claude 구독(OAuth)** 그대로 활용 — API 별도 과금 X
+- **BYOK 다중 모델 라우팅** — Anthropic / OpenAI / Google / Local 어느 쪽이든. Claude Pro/Max 구독자는 Claude Code CLI (vibe-coding) 를 같이 두면 두 도구 결합 효과
 - 엣지에서 GitHub PR 자동화, 로그 트리아지, IoT 모니터링 등 백그라운드 작업
-- **데이터 주권**: 작업 큐·로그·자격증명·산출물을 클라우드 아닌 개인 디바이스에 보관
+- **데이터 주권**: 세션·메시지·스킬·로그·자격증명을 클라우드 아닌 개인 디바이스에 보관
 
 ## OpenClaw 가 뭔가요?
 
@@ -84,7 +84,7 @@ bash /home/dzp/dzp_main/program/openclaw-on-pi/scripts/healthcheck.sh
 
 - Linux 셸 기본 (`ssh`, `systemd`, `cron`, `tmux`)
 - Raspberry Pi OS 또는 Ubuntu Server 설치·플래싱 경험
-- **Claude Pro 또는 Max 구독** (Free 플랜은 사용량/도구 호출 한도가 낮아 부적합)
+- **BYOK 모델 자격증명 1개 이상** (OpenClaw 가 호출). 본 가이드 권장: Anthropic API key (console.anthropic.com 에서 발급). 단, **Claude Pro/Max 구독은 OpenClaw 가 *직접 쓰지 않는다*** — 구독은 Claude Code CLI 의 OAuth 용 (vibe-coding). 비용 구조는 [비용 · 전력 가늠](#비용--전력-가늠) 참고
 - Git / GitHub 사용 경험
 
 ---
@@ -161,7 +161,7 @@ openclaw-on-pi/
 | 네트워크 | 유선 이더넷 | 안정 Wi-Fi |
 | 전원 | 공식 27W USB-C PD | 5V/3A 이상 |
 
-> 🚫 **Pi Zero 2W / Pi 3 비권장**: ARM64 빌드 호환성, RAM, 발열 한계로 Claude Code + Node 런타임 + 에이전트 큐를 안정적으로 운용하기 어렵습니다.
+> 🚫 **Pi Zero 2W / Pi 3 비권장**: ARM64 빌드 호환성, RAM, 발열 한계로 Node 22+ 런타임 + OpenClaw gateway + LLM 호출 워크로드를 안정 운용하기 어렵습니다.
 
 ---
 
@@ -263,14 +263,17 @@ OpenClaw 의 *주* 인터페이스는 **메시징 채널**: 사용자가 Telegra
 
 ## 비용 · 전력 가늠
 
-| 항목 | 추정값 |
-|---|---|
-| Claude Pro 구독 | $20/월 |
-| Claude Max 구독 | $100 ~ $200/월 |
-| Pi 5 (8GB) 평균 소비 전력 | 5–8W (부하 시 ~10W) |
-| 월 전기 요금 (한국 가정용, 24/7) | ≈ 1,000–2,000 원 |
+OpenClaw 는 **BYOK 다중 모델 라우팅** 이라 비용 구조가 두 갈래로 나뉩니다.
 
-> 동일 워크로드를 Anthropic API 로 돌릴 경우 비용은 토큰 사용량에 비례합니다. 코드 작성·수정 위주의 지속적 에이전트 워크로드는 일반적으로 **구독제가 더 저렴**합니다. 단, 다중 에이전트로 한도를 초과하면 스로틀링됩니다 ([알려진 제약](#알려진-제약) 참고).
+| 항목 | 추정값 | 적용처 |
+|---|---|---|
+| **OpenClaw 의 모델 호출** (Anthropic API 등) | 토큰 사용량 비례 (Sonnet ≈ $3/M input · $15/M output) | OpenClaw 의 자율 에이전트 / 스킬 호출 |
+| Claude Pro 구독 | $20/월 | (선택) Claude Code CLI 의 OAuth — 사람이 직접 vibe-coding |
+| Claude Max 구독 | $100 ~ $200/월 | 마찬가지 — Claude Code CLI 만 사용 |
+| Pi 5 (8GB) 평균 소비 전력 | 5–8W (부하 시 ~10W) | — |
+| 월 전기 요금 (한국 가정용, 24/7) | ≈ 1,000–2,000 원 | — |
+
+> **중요**: Claude Pro/Max 구독은 OpenClaw 의 자율 호출을 *대체하지 않습니다*. OpenClaw 가 모델을 부를 때마다 BYOK API key 의 사용량으로 과금됩니다. 가벼운 개인 사용 (하루 수십 회 호출) 이면 월 $5–20 수준, 자율 코딩 루프 같은 헤비 워크로드는 월 $50+ 도 가능. [recipes/auto-coding-loop](recipes/auto-coding-loop.md) 의 cron 빈도와 변경 라인 가드로 비용 제어. 다중 에이전트로 한도를 초과하면 BYOK provider 가 스로틀링.
 
 ---
 
@@ -288,23 +291,29 @@ OpenClaw 의 *주* 인터페이스는 **메시징 채널**: 사용자가 Telegra
 
 ## FAQ
 
-**Q. API 키로 쓰는 거랑 뭐가 다른가요?**
-A. 본 가이드는 **OAuth 구독 인증** 을 사용합니다. Pro/Max 구독자라면 API 별도 과금 없이, 구독에 포함된 사용량 한도 안에서 에이전트를 돌릴 수 있습니다.
+**Q. Claude 구독만 있으면 OpenClaw 가 돌아가나요?**
+A. **아니요.** OpenClaw 는 BYOK 라 자체적으로 API key (예: Anthropic console 의 API key) 를 받아 호출합니다. Claude Pro/Max 구독은 OpenClaw 의 호출과는 *별개 경로* 인 Claude Code CLI (사람이 직접 vibe-coding) 용으로만 의미가 있습니다. 본 Pi 에 두 도구가 공존하지만 인증·과금 경로가 다릅니다 — [`docs/04-integration.md §3`](docs/04-integration.md#3-claude-code-cli-가-같이-있는-의미) 참고.
+
+**Q. 그럼 OpenClaw 비용은 얼마나 나오나요?**
+A. BYOK provider 의 토큰 가격 × 호출량. 본 가이드 권장 `anthropic/claude-sonnet-4-6` 기준 가벼운 개인 사용은 월 $5–20, 자율 코딩 루프는 월 $50+ 수준. [비용 · 전력 가늠](#비용--전력-가늠) 표 + recipes 의 cron 빈도·변경 라인 가드로 제어.
 
 **Q. macOS / Windows / 일반 리눅스 서버에서도 되나요?**
-A. 됩니다. 본 가이드는 **ARM64 + 헤드리스** 라는 가장 까다로운 조합을 전제로 합니다. 다른 환경에서는 [OAuth 트릭](docs/02-claude-code-oauth.md) 단계 등이 단순화됩니다.
+A. 됩니다. 본 가이드는 **ARM64 + 헤드리스** 라는 가장 까다로운 조합을 전제로 합니다. 다른 환경에서는 SSH 트릭 등이 단순화됩니다.
 
 **Q. Pi Zero 2W / Pi 3 로도 되나요?**
-A. 비권장. Node 런타임·메모리·발열 측면에서 안정 구동이 어렵습니다. 단순 큐 워커로 분리해 사용하는 정도는 가능합니다.
+A. 비권장. Node 22+ 런타임 · 메모리 · 발열 측면에서 안정 구동이 어렵습니다.
 
 **Q. 외부에서 Pi 에이전트를 조작할 수 있나요?**
-A. 가능합니다. [`recipes/remote-vibe-coding.md`](recipes/remote-vibe-coding.md) 참고.
+A. 가능합니다. 가장 자연스러운 경로는 OpenClaw 의 Telegram 봇에 메시지 → 자동 응답. [`recipes/remote-vibe-coding.md`](recipes/remote-vibe-coding.md) 참고.
 
-**Q. OAuth 토큰이 만료되면 어떻게 되나요?**
-A. 현재는 수동 재인증이 필요합니다. 자동 갱신은 [로드맵](#로드맵) 에 포함되어 있습니다.
+**Q. OpenClaw 가 자가 스킬 생성을 한다는데, 안전한가요?**
+A. 그것이 가장 큰 셀링 포인트이자 가장 큰 위험입니다. ClawHub 에 2026-01 이후 230+ 악성 스킬이 올라왔고, 인기 1위 스킬에서도 데이터 외부 유출이 적발됐습니다. **자동 설치 금지** + 모든 외부 스킬은 사람 리뷰 후에만 — [`docs/07 §4`](docs/07-openclaw-hardening.md#4-스킬-clawhub-안전-정책).
 
-**Q. 구독 플랜 한도를 넘어가면요?**
-A. Anthropic 측에서 스로틀링 됩니다. 에이전트 큐에서 백오프·스로틀링 정책을 적용하거나, 작업을 분산해야 합니다.
+**Q. BYOK API key 가 만료/한도 초과되면?**
+A. OpenClaw 응답이 401/429 로 실패. healthcheck.sh 가 BYOK key 자체의 만료까지는 못 보지만 gateway 응답 / 모델 호출 실패는 감지. 정기적으로 console.anthropic.com 에서 사용량 확인.
+
+**Q. Claude Code CLI 의 OAuth 토큰이 만료되면?**
+A. (vibe-coding 만 영향) 수동 재인증 필요. 자동 갱신은 로드맵.
 
 ---
 
@@ -312,27 +321,30 @@ A. Anthropic 측에서 스로틀링 됩니다. 에이전트 큐에서 백오프�
 
 **라운드 1 (2026-05-16, 잘못된 청사진)** — OpenClaw 를 Python/pip 기반 작업 큐 프레임워크로 가정. 실제는 TS/Node 메시징 게이트웨이로 판명. 1차 라운드 산출물 대부분 stale.
 
-**라운드 2 (2026-05-16 재작성)** — 공식 [openclaw/openclaw](https://github.com/openclaw/openclaw) 기준으로 재작성:
+**라운드 2 (2026-05-16~17 재작성)** — 공식 [openclaw/openclaw](https://github.com/openclaw/openclaw) 기준으로 전 산출물 재작성:
 
-- [x] install-openclaw.sh npm 기반 재작성 (Node 22+ 검증, 최소 버전 핀)
+- [x] install-openclaw.sh npm 기반 재작성 (Node 22+ 검증, 최소 버전 핀 2026.2.6)
 - [x] bootstrap-pi.sh Node 20 → 22
 - [x] configs/openclaw.example.json5 — 실제 설정 포맷 (JSON5)
 - [x] docs/03-openclaw-install.md — `openclaw onboard` 흐름
+- [x] docs/04-integration.md — BYOK 라우팅 + Claude Code CLI 와의 관계
+- [x] docs/00-quickstart.md Phase 3 — onboard → gateway → pair → hello
+- [x] docs/05-headless-ops.md — user 모드 권장 + 시스템 모드 절차 npm 기반
 - [x] docs/07-openclaw-hardening.md — CVE 인벤토리 + gateway 보안 + 스킬 리뷰
-- [x] README 아키텍처 그림 + 보안 섹션 + 알려진 제약 갱신
-- [ ] docs/00-quickstart.md Phase 3 재작성
-- [ ] docs/04-integration.md — BYOK 라우팅 관점
-- [ ] examples/{hello-agent, github-pr-bot, log-triage} — SKILL.md 기반
-- [ ] recipes 5개 — 메시징 게이트웨이 패턴 기반
-- [ ] spec 에 재작성 라운드 결정 기록
+- [x] docs/troubleshooting.md C4–C6, E1-OC/CC, E2-OC/CC, E4 — OpenClaw vs Claude Code 두 경로 분리
+- [x] README — 아키텍처 그림 / 보안 / 비용 (BYOK 명시) / FAQ / 알려진 제약
+- [x] examples/{hello-agent, github-pr-bot, log-triage} — SKILL.md 기반 재작성
+- [x] recipes 5개 — `cron.jobs` + `agents.list` + `openclaw agent --skill` 실제 인터페이스
+- [x] scripts/healthcheck.sh — OpenClaw 설정 / gateway 응답 / user·system 모드 양쪽 점검
+- [x] spec 에 1차 폐기 / 2차 산출물 / 교훈 기록
 
 **검증 / 후속**:
 
-- [ ] Pi 5 (8GB) 실 환경에서 부트스트랩 → onboard → hello-agent 끝-끝 검증
-- [ ] github-pr-bot 1주 production-shadow → 활성화
-- [ ] log-triage 마스킹 룰셋 실 로그로 보강 + 프롬프트 튜닝
+- [ ] Pi 5 (8GB) 실 환경에서 부트스트랩 → install-openclaw → onboard → hello-agent 끝-끝 검증
+- [ ] github-pr-bot `PR_BOT_DRY_RUN=1` 1주 production-shadow → 활성화
+- [ ] log-triage `LOG_TRIAGE_PUBLISH=stdout` 1주 그림자 → 마스킹 보강 후 실 채널
 - [ ] DefenseClaw 등 외부 보안 도구 연계 가이드
-- [ ] Pi 5 NPU HAT 활용 검토
+- [ ] Pi 5 NPU HAT 활용 검토 (로컬 모델 fallback)
 - [ ] 한글 / 영문 문서 페어 정리
 
 ---

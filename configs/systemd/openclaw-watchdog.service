@@ -1,5 +1,12 @@
+# OpenClaw watchdog (system-mode). user-mode 의 경우 별도로 user systemd 유닛으로
+# 두거나 cron 으로 healthcheck.sh 를 호출하면 된다.
+#
+# 사전 준비 (시스템 모드):
+#   sudo cp scripts/healthcheck.sh /opt/openclaw/scripts/
+#   sudo chmod +x /opt/openclaw/scripts/healthcheck.sh
+
 [Unit]
-Description=OpenClaw watchdog (health, token expiry, disk, memory)
+Description=OpenClaw watchdog (health, BYOK token age, disk, memory)
 Documentation=https://github.com/YawnsDuzin/openclaw-on-pi
 After=openclaw.service
 PartOf=openclaw.service
