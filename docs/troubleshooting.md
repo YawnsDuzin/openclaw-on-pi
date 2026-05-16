@@ -188,6 +188,41 @@ ps aux | grep -E 'apt|dpkg|unattended' | grep -v grep
 
 ⚠️ 다른 apt/dpkg 가 실행 중인데 `rm /var/lib/dpkg/lock*` 으로 락을 강제 삭제하면 패키지 DB 가 망가진다 — 절대 금지.
 
+### C6. `install-claude-code.sh` 직후 `claude: 명령어를 찾을 수 없음`
+
+**증상**: 설치는 성공("설치 완료: 2.1.x")이지만 다음 줄에서:
+
+```
+$ claude --version
+-bash: claude: 명령어를 찾을 수 없음
+$ bash scripts/oauth-tunnel.sh
+[err] claude 바이너리가 없습니다. install-claude-code.sh 먼저.
+```
+
+**원인**: 스크립트는 npm 글로벌 prefix 를 `~/.npm-global` 로 설정해 sudo 없이 설치한다. 설치 자체는 성공하지만 **부모 셸의 PATH 는 변경되지 않으므로** 다음 명령에서 `claude` 를 찾지 못한다.
+
+**확인**:
+
+```bash
+ls -la ~/.npm-global/bin/claude       # 존재해야 정상
+echo "$PATH" | tr ':' '\n' | grep npm  # ~/.npm-global/bin 가 보이면 정상
+```
+
+**해결**:
+
+```bash
+# 1) 현재 셸에 1회 적용
+export PATH="$HOME/.npm-global/bin:$PATH"
+claude --version                      # 확인
+
+# 2) 영구 등록 (idempotent — 두 번 실행해도 중복 추가 안 됨)
+grep -qxF 'export PATH="$HOME/.npm-global/bin:$PATH"' ~/.bashrc \
+  || echo 'export PATH="$HOME/.npm-global/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+> 💡 현재 `install-claude-code.sh` 는 `~/.bashrc`/`~/.zshrc` 에 자동 등록한다. 이미 등록된 환경이면 새 SSH 세션부터 자동 적용 — 현재 세션만 위 옵션 1로 즉시 적용하면 됨.
+
 ---
 
 ## D. 메모리 / 성능
