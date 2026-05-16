@@ -88,4 +88,5 @@ else
     warn "openclaw 명령을 PATH 에서 찾지 못했습니다. 위 메시지를 확인하세요."
 fi
 
-log "다음 단계: configs/openclaw.example.yaml → ~/openclaw.yaml 로 복사 후 수정"
+PROGRAM_BASE="${OPENCLAW_PROGRAM_BASE:-$HOME/dzp_main/program}"
+log "다음 단계: configs/openclaw.example.yaml → $PROGRAM_BASE/openclaw-work/openclaw.yaml 로 복사 후 수정"

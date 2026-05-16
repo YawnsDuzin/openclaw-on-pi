@@ -53,16 +53,16 @@ export PATH="$HOME/.local/bin:$PATH"
 본 저장소가 제공하는 예제 설정을 복사:
 
 ```bash
-mkdir -p ~/openclaw-work
-cp configs/openclaw.example.yaml ~/openclaw-work/openclaw.yaml
-cp configs/CLAUDE.example.md     ~/openclaw-work/CLAUDE.md
+mkdir -p /home/dzp/dzp_main/program/openclaw-work
+cp configs/openclaw.example.yaml /home/dzp/dzp_main/program/openclaw-work/openclaw.yaml
+cp configs/CLAUDE.example.md     /home/dzp/dzp_main/program/openclaw-work/CLAUDE.md
 ```
 
-`~/openclaw-work/openclaw.yaml` 에서 다음을 환경에 맞게 수정:
+`/home/dzp/dzp_main/program/openclaw-work/openclaw.yaml` 에서 다음을 환경에 맞게 수정:
 
 | 키 | 의미 | 권장값 |
 |---|---|---|
-| `agent.workdir` | 에이전트 작업 디렉토리 | `~/openclaw-work` |
+| `agent.workdir` | 에이전트 작업 디렉토리 | `/home/dzp/dzp_main/program/openclaw-work` |
 | `agent.log_level` | 로그 레벨 | 첫 실행 `debug`, 안정화 후 `info` |
 | `runtime.claude_code.binary` | claude 바이너리 경로 | `claude` (PATH) |
 | `runtime.claude_code.model` | 모델 핀 | `claude-sonnet-4-6` |
@@ -77,7 +77,7 @@ cp configs/CLAUDE.example.md     ~/openclaw-work/CLAUDE.md
 가장 작은 시나리오: "현재 디렉토리의 README 끝에 한 줄 추가" 같은 무해한 작업으로 파이프라인을 끝에서 끝까지 검증한다.
 
 ```bash
-mkdir -p ~/openclaw-work/hello && cd ~/openclaw-work/hello
+mkdir -p /home/dzp/dzp_main/program/openclaw-work/hello && cd /home/dzp/dzp_main/program/openclaw-work/hello
 echo "# hello" > README.md
 git init -q && git add . && git commit -q -m "init"
 

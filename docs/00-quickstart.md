@@ -81,15 +81,20 @@ curl -fsS https://anthropic.com >/dev/null && echo OK
 
 ### 1-3. 저장소 클론 + 부트스트랩
 
+> 📁 **경로 규약**: 본 가이드는 `/home/dzp/dzp_main/program/` 을 작업 베이스로 사용합니다. 다른 사용자/경로를 쓰려면 모든 `/home/dzp/dzp_main/program` 을 본인 경로로 치환하거나, 스크립트에 `OPENCLAW_PROGRAM_BASE=$HOME/your/path` 환경변수를 지정하세요.
+
 ```bash
-cd ~
+# 작업 베이스 디렉토리 생성
+mkdir -p /home/dzp/dzp_main/program
+cd /home/dzp/dzp_main/program
+
 git clone https://github.com/YawnsDuzin/openclaw-on-pi.git
-cd openclaw-on-pi
+cd /home/dzp/dzp_main/program/openclaw-on-pi
 
 bash scripts/bootstrap-pi.sh
 ```
 
-스크립트가 하는 일: apt 업데이트, 핵심 패키지 설치, Node.js 20 LTS, `~/.claude` (700) / `~/openclaw-work` / `~/.local/bin` 디렉토리 준비.
+스크립트가 하는 일: apt 업데이트, 핵심 패키지 설치, Node.js 20 LTS, `~/.claude` (700) / `/home/dzp/dzp_main/program/openclaw-work` / `~/.local/bin` 디렉토리 준비.
 
 ✅ 체크:
 
@@ -194,13 +199,13 @@ PATH 에 안 잡히면 `~/.bashrc` 에 `export PATH="$HOME/.local/bin:$PATH"` �
 ### 3-2. 설정 파일 복사 — [`docs/03-openclaw-install.md`](./03-openclaw-install.md)
 
 ```bash
-mkdir -p ~/openclaw-work
-cp configs/openclaw.example.yaml ~/openclaw-work/openclaw.yaml
-cp configs/CLAUDE.example.md     ~/openclaw-work/CLAUDE.md
+mkdir -p /home/dzp/dzp_main/program/openclaw-work
+cp configs/openclaw.example.yaml /home/dzp/dzp_main/program/openclaw-work/openclaw.yaml
+cp configs/CLAUDE.example.md     /home/dzp/dzp_main/program/openclaw-work/CLAUDE.md
 cp configs/claude-code-settings.example.json ~/.claude/settings.json
 ```
 
-[`docs/03`](./03-openclaw-install.md) §3 표를 보고 **`~/openclaw-work/openclaw.yaml`** 에서 다음 키만 자기 환경에 맞게:
+[`docs/03`](./03-openclaw-install.md) §3 표를 보고 **`/home/dzp/dzp_main/program/openclaw-work/openclaw.yaml`** 에서 다음 키만 자기 환경에 맞게:
 
 - `runtime.claude_code.model` (Pi 4 라면 `claude-haiku-4-5-20251001` 권장)
 - `queues[].max_concurrent` (Pi 4 4GB → `1`, Pi 5 8GB → `2`)
@@ -210,8 +215,8 @@ cp configs/claude-code-settings.example.json ~/.claude/settings.json
 **가장 중요한 체크포인트.** 이게 통과하면 OpenClaw ↔ Claude Code 파이프라인이 살아있다는 뜻.
 
 ```bash
-cd ~/openclaw-work
-cp -r ~/openclaw-on-pi/examples/hello-agent .
+cd /home/dzp/dzp_main/program/openclaw-work
+cp -r /home/dzp/dzp_main/program/openclaw-on-pi/examples/hello-agent .
 cd hello-agent
 bash run.sh
 ```
