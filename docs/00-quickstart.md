@@ -116,6 +116,9 @@ ls -ld ~/.claude          # 권한이 700
 
 ```bash
 bash scripts/install-claude-code.sh
+
+# 현재 셸에 PATH 적용 (스크립트가 ~/.bashrc 에 영구 등록은 자동 처리)
+export PATH="$HOME/.npm-global/bin:$PATH"
 ```
 
 ✅ 체크:
@@ -125,7 +128,7 @@ claude --version          # 정상 출력
 which claude              # ~/.npm-global/bin/claude (또는 PATH 의 다른 곳)
 ```
 
-❌ 실패 시: [`troubleshooting.md`](./troubleshooting.md) C1 (npm EACCES) / C3 (Node 버전).
+❌ 실패 시: [`troubleshooting.md`](./troubleshooting.md) C1 (npm EACCES) / C3 (Node 버전) / **C6 (PATH 누락 — `claude: 명령어를 찾을 수 없음`)**.
 
 ### 2-2. OAuth 1회 인증 — [`docs/02-claude-code-oauth.md`](./02-claude-code-oauth.md)
 

@@ -43,4 +43,41 @@ if ! command -v claude >/dev/null 2>&1; then
 fi
 
 ok "설치 완료: $(claude --version 2>/dev/null || echo '버전 확인 실패')"
+
+# ---------- PATH 영구 등록 --------------------------------------------------
+# 본 스크립트의 export PATH 는 서브셸에서만 유효. 부모 셸과 다음 로그인을
+# 위해 사용자의 셸 rc 에 idempotent 하게 추가한다.
+PATH_LINE="export PATH=\"$NPM_GLOBAL_PREFIX/bin:\$PATH\""
+RC_FILES=()
+[[ -f "$HOME/.bashrc" ]] && RC_FILES+=("$HOME/.bashrc")
+[[ -f "$HOME/.zshrc"  ]] && RC_FILES+=("$HOME/.zshrc")
+# rc 가 하나도 없으면 .bashrc 신규 생성
+[[ ${#RC_FILES[@]} -eq 0 ]] && { touch "$HOME/.bashrc"; RC_FILES+=("$HOME/.bashrc"); }
+
+for RC in "${RC_FILES[@]}"; do
+    if grep -qxF "$PATH_LINE" "$RC" 2>/dev/null; then
+        log "PATH 이미 등록됨: $RC"
+    else
+        printf '\n# Added by openclaw-on-pi install-claude-code.sh\n%s\n' "$PATH_LINE" >> "$RC"
+        ok "PATH 영구 등록: $RC"
+    fi
+done
+
+cat <<EOF
+
+${C_WARN}[중요]${C_OFF} 본 스크립트의 PATH 변경은 ${C_WARN}현재 셸에는 반영되지 않습니다${C_OFF}.
+다음 중 하나로 즉시 적용하세요:
+
+  ${C_OK}# 옵션 A — 현재 셸에 1회 적용${C_OFF}
+  export PATH="$NPM_GLOBAL_PREFIX/bin:\$PATH"
+
+  ${C_OK}# 옵션 B — rc 파일 다시 로드${C_OFF}
+  source ~/.bashrc
+
+확인:
+  which claude            # $NPM_GLOBAL_PREFIX/bin/claude
+  claude --version
+
+EOF
+
 log "다음 단계: bash scripts/oauth-tunnel.sh 로 OAuth 1회 인증"

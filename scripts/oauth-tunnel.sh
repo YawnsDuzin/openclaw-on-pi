@@ -34,7 +34,22 @@ die()  { printf '%s[err]%s %s\n'   "$C_ERR"  "$C_OFF" "$*" >&2; exit 1; }
 
 PORT="${1:-54545}"
 
-command -v claude >/dev/null 2>&1 || die "claude 바이너리가 없습니다. install-claude-code.sh 먼저."
+# claude 가 PATH 에 없으면, 흔한 위치(~/.npm-global/bin)에 있는지 확인하여
+# "미설치" 와 "PATH 누락" 을 구분해 안내한다.
+if ! command -v claude >/dev/null 2>&1; then
+    NPM_GLOBAL_PREFIX="${NPM_GLOBAL_PREFIX:-$HOME/.npm-global}"
+    if [[ -x "$NPM_GLOBAL_PREFIX/bin/claude" ]]; then
+        warn "claude 는 설치되어 있으나 PATH 에 없습니다 ($NPM_GLOBAL_PREFIX/bin/claude)."
+        warn "현재 셸에 적용:"
+        warn "  export PATH=\"$NPM_GLOBAL_PREFIX/bin:\$PATH\""
+        warn "영구 적용 (idempotent):"
+        warn "  grep -qxF 'export PATH=\"\$HOME/.npm-global/bin:\$PATH\"' ~/.bashrc \\"
+        warn "    || echo 'export PATH=\"\$HOME/.npm-global/bin:\$PATH\"' >> ~/.bashrc"
+        warn "  source ~/.bashrc"
+        die  "PATH 적용 후 다시 실행하세요."
+    fi
+    die "claude 바이너리가 없습니다. install-claude-code.sh 먼저."
+fi
 
 # 이미 인증되어 있는지 가벼운 점검
 CRED="$HOME/.claude/credentials.json"
