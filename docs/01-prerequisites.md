@@ -1,6 +1,6 @@
 # 01 — Prerequisites
 
-> 라즈베리파이에서 OpenClaw + Claude Code 를 24/7 돌리기 위한 하드웨어 · OS · 패키지 · 네트워크 사전 조건.
+> 라즈베리파이에서 **OpenClaw** 를 24/7 안전하게 돌리기 위한 하드웨어 · OS · 패키지 · 네트워크 사전 조건. (Claude Code CLI 는 선택 — Phase 2)
 >
 > 처음 사용자는 [`00-quickstart.md`](./00-quickstart.md) 를 먼저 펼쳐놓고 본 문서는 Phase 1 의 참조로 사용하세요.
 
@@ -124,11 +124,36 @@ OAuth 콜백 시 일시적으로 사용자 단의 SSH 역포트포워딩 (`-L`) 
 
 ---
 
-## 6. 사전 계정 / 구독
+## 6. 사전 계정 / 자격증명
 
-- **Claude Pro 또는 Max 구독** — Free 는 사용량/도구 호출 한도가 낮아 부적합
-- **GitHub 계정 + PAT** — 에이전트가 PR 자동화를 한다면 미리 fine-grained PAT 발급
-- **시간 동기화** — `timedatectl` 가 활성 상태인지 확인 (NTP 가 죽어 있으면 OAuth 토큰 검증이 실패)
+### 6-1. (필수) BYOK 모델 API key — OpenClaw 가 직접 호출
+
+본 가이드 권장: **Anthropic API key**.
+
+1. [console.anthropic.com](https://console.anthropic.com/) 로그인
+2. **Settings → API Keys → Create Key** → 이름 (예: `openclaw-pi`) 지정
+3. 발급된 `sk-ant-...` 를 즉시 안전한 곳에 복사 (한 번만 보임)
+4. **Billing** 메뉴에서 결제 정보 등록 + 월 사용량 한도 설정 (월 $20-50 권장으로 시작)
+
+OpenAI / Google / xAI 등 다른 provider 도 가능 — 각 console 에서 발급, OpenClaw 의 `agents.defaults.model.primary` 를 해당 provider 로 지정.
+
+### 6-2. (선택) Claude Pro 또는 Max 구독 — Claude Code CLI 의 OAuth 용
+
+- **OpenClaw 가 직접 쓰는 것이 아닙니다.** 사람이 Pi 에 SSH 들어가 `claude -p "..."` 로 vibe-coding 할 때만 의미.
+- OpenClaw 만 쓸 거면 스킵.
+
+### 6-3. (조건부) GitHub 계정 + PAT
+
+- `examples/github-pr-bot` 같이 GitHub 자동화 스킬을 쓸 때만 필요
+- fine-grained PAT 스코프: `contents:write`, `pull_requests:write`, `metadata:read`
+
+### 6-4. (필수) 시간 동기화
+
+```bash
+timedatectl status     # NTP=active 확인
+```
+
+NTP 가 죽어 있으면 BYOK provider 의 API 호출에서 TLS 인증서 검증 / OAuth 토큰 검증이 실패합니다.
 
 ---
 

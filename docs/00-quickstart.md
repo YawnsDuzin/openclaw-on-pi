@@ -1,9 +1,11 @@
 # 00 — Quickstart (처음 사용자 가이드)
 
-> 이 문서 한 페이지로 **빈 Pi → OpenClaw + Claude Code 24/7 가동** 까지 끝낸다.
+> 이 문서 한 페이지로 **빈 Pi → OpenClaw 24/7 가동** 까지 끝낸다.
 > 각 단계마다 검증 명령과 실패 시 점프 위치가 명시되어 있다. **위에서 아래로 순서대로** 진행하면 된다.
 
 ⚠ 검증 환경: Raspberry Pi 5 (8GB) + Raspberry Pi OS 64-bit Bookworm. Pi 4 (4GB) / Ubuntu Server 24.04 ARM64 호환은 가능하지만 일부 단계가 더 오래 걸릴 수 있다.
+
+> 📌 **Phase 2 (Claude Code CLI) 는 선택**: 본 가이드의 메인은 OpenClaw 입니다. Claude Code CLI 는 사람이 직접 Pi 에 SSH 들어가 *vibe-coding* 할 때만 필요하며, **OpenClaw 자체와는 무관한 별도 도구** 입니다. OpenClaw 만 쓸 거면 Phase 2 는 통째로 스킵해도 됩니다. ([04-integration §3](./04-integration.md#3-claude-code-cli-가-같이-있는-의미))
 
 ---
 
@@ -12,10 +14,10 @@
 | 구간 | 예상 시간 |
 |---|---|
 | Phase 1 (사전 점검 + 부트스트랩) | 15–25 분 |
-| Phase 2 (Claude Code + OAuth) | 5–10 분 |
-| Phase 3 (OpenClaw + 첫 동작 검증) | 10–15 분 |
-| Phase 4 (운영 전환 — systemd) | 15–20 분 |
-| **총 (운영 가동까지)** | **약 1시간** |
+| Phase 2 (Claude Code + OAuth) — **선택** | 5–10 분 |
+| Phase 3 (OpenClaw 설치 + onboard + 첫 동작) | 15–25 분 |
+| Phase 4 (운영 전환 — systemd) | 5–15 분 |
+| **총 (Phase 2 스킵 시 약 35–65 분, 포함 시 약 1시간)** | |
 
 이후 (선택): 성능 튜닝 / 레시피 적용 / 추가 예제 활성화.
 
@@ -24,21 +26,23 @@
 ## 진행 흐름 한눈에
 
 ```
-   ┌──────────── Phase 1 ────────────┐
+   ┌──────────── Phase 1 (필수) ─────────────┐
    README → docs/01 → bootstrap-pi.sh
-                                     │
-   ┌──────────── Phase 2 ────────────┘
+                                              │
+   ┌──────────── Phase 2 (선택) ─────────────┘
    install-claude-code.sh
        → docs/02 + oauth-tunnel.sh + claude login
-                                     │
-   ┌──────────── Phase 3 ────────────┘
+       (사람이 직접 vibe-coding 할 때만 필요. OpenClaw 와 별개)
+                                              │
+   ┌──────────── Phase 3 (필수, 메인) ───────┘
    install-openclaw.sh
-       → docs/03 (설정 복사)
+       → openclaw onboard --install-daemon  (BYOK 토큰 / 채널 / Gateway)
+       → Telegram 봇 페어링 (선택, docs/03 §5)
        → examples/hello-agent (끝-끝 검증) ← 필수 체크포인트
-                                     │
-   ┌──────────── Phase 4 ────────────┘
-   docs/04 (통합 패턴 학습)
-       → docs/05 (systemd 전환) ← 운영 가동
+                                              │
+   ┌──────────── Phase 4 (필수) ─────────────┘
+   systemctl --user enable openclaw  (onboard 가 깐 user 유닛 활성화)
+       → docs/07 보안 베이스라인 통독
        → healthcheck.sh
 
    ─────────── 이후 (선택) ───────────
@@ -54,7 +58,12 @@
 ### 1-1. README 한 번 훑기 (5분)
 
 `README.md` 의 **사전 지식 / 요구 사양 / 보안 · 운영 주의사항 / 알려진 제약** 섹션만 읽기.
-구독은 **Claude Pro 또는 Max** 가 전제입니다 (Free 는 한도 부족).
+
+**필요한 자격증명** 미리 확인:
+
+- **(필수) BYOK 모델 API key 1개**: OpenClaw 가 직접 호출. 본 가이드 권장은 [Anthropic console](https://console.anthropic.com/) 의 API key (`sk-ant-...` 형태). OpenAI / Google 도 가능.
+- **(선택) Claude Pro/Max 구독**: Claude Code CLI 의 OAuth 용. **OpenClaw 가 직접 쓰지 않음** — 사람이 직접 vibe-coding 할 때만 필요. Phase 2 에 해당.
+- **(선택) Telegram 봇 토큰**: 모바일에서 OpenClaw 에 메시지 보내는 채널. Phase 3 끝에 BotFather 로 만든다.
 
 ### 1-2. HW / OS 점검 — [`docs/01-prerequisites.md`](./01-prerequisites.md)
 
@@ -99,9 +108,10 @@ bash scripts/bootstrap-pi.sh
 ✅ 체크:
 
 ```bash
-node --version            # v20.x
+node --version            # v22.x (또는 v24.x)
 python3 --version         # 3.x
 ls -ld ~/.claude          # 권한이 700
+ls -d /home/dzp/dzp_main/program/openclaw-work    # 디렉토리 존재
 ```
 
 ❌ 실패 시: [`troubleshooting.md`](./troubleshooting.md) C절 (빌드/의존성).
@@ -110,7 +120,9 @@ ls -ld ~/.claude          # 권한이 700
 
 ---
 
-## Phase 2 — Claude Code + OAuth
+## Phase 2 — Claude Code + OAuth (선택, 스킵 가능)
+
+> 📌 **이 단계는 선택입니다.** 사람이 직접 SSH 들어가 `claude -p "..."` 로 vibe-coding 할 때만 필요. OpenClaw 만 쓸 거면 통째로 스킵하고 [Phase 3](#phase-3--openclaw--첫-동작-검증) 으로.
 
 ### 2-1. Claude Code CLI 설치
 
@@ -176,6 +188,26 @@ claude -p "say 'ok' and nothing else" # ok 한 단어
 
 ## Phase 3 — OpenClaw + 첫 동작 검증
 
+> 🔑 **Phase 2 를 스킵했다면 PATH 적용 필요**: 이번 세션에서 npm 글로벌 prefix 를 PATH 에 추가합니다 (영구 등록은 [3-1](#3-1-openclaw-설치-npm-글로벌) 의 스크립트가 자동).
+>
+> ```bash
+> export PATH="$HOME/.npm-global/bin:$PATH"
+> ```
+
+### 3-0. BYOK API key 준비 (필수)
+
+OpenClaw 는 BYOK — 본인의 API key 가 있어야 모델을 호출할 수 있습니다.
+
+**Anthropic Claude (본 가이드 권장)**:
+
+1. [console.anthropic.com](https://console.anthropic.com/) 로그인
+2. 우상단 **Settings → API Keys → Create Key**
+3. 이름 (예: `openclaw-pi`) + 워크스페이스 선택 → 생성
+4. **이 키는 한 번만 보입니다.** 안전한 곳에 즉시 복사 (`sk-ant-...` 형태)
+5. 결제 정보 미입력 시 free credit 만 사용 가능 → console 의 **Billing** 에서 카드 등록 + 사용량 한도 설정 (월 $20-50 권장으로 시작)
+
+**OpenAI / Google** 도 가능 — 각 console 에서 API key 발급. 본 가이드는 Anthropic 을 가정.
+
 ### 3-1. OpenClaw 설치 (npm 글로벌)
 
 ```bash
@@ -197,22 +229,23 @@ PATH 에 안 잡히면 → [`troubleshooting.md` C6](./troubleshooting.md#c6).
 
 ### 3-2. 대화형 온보딩 — `openclaw onboard`
 
-OpenClaw 의 첫 실행은 **대화형 마법사**. BYOK 토큰 / 채널 / Gateway 토큰을 한 번에 물어 `~/.openclaw/openclaw.json` 을 생성.
+OpenClaw 의 첫 실행은 **대화형 마법사**. 3-0 에서 받은 API key 와 다음 답들을 미리 준비:
 
 ```bash
 openclaw onboard --install-daemon
 ```
 
-대화형으로 묻는 항목 (질문 순서/문구는 버전마다 다를 수 있음):
+마법사가 묻는 항목 (질문 순서/문구는 버전마다 다를 수 있음):
 
 | 항목 | 본 가이드 권장 답 |
 |---|---|
 | 1순위 모델 | `anthropic/claude-sonnet-4-6` (또는 보유한 다른 provider) |
-| Anthropic API key | 본인 키 — 없으면 console.anthropic.com 에서 발급 |
+| Anthropic API key | 3-0 에서 받은 `sk-ant-...` 그대로 |
 | Gateway 포트 | `18789` (기본) |
 | Gateway 바인딩 | **`loopback`** (외부 노출 금지 — 권장 강제) |
-| systemd daemon 설치 | `yes` (24/7 가동) |
-| 메시징 채널 활성화 | **`Telegram only` + dmPolicy `pairing`** (첫 1주는 본인 페어링만) |
+| Gateway 인증 모드 | `token` |
+| systemd daemon 설치 | `yes` (24/7 가동, user 모드 자동) |
+| 메시징 채널 활성화 | **첫 가동은 `none`** (먼저 hello-agent 로 끝-끝 확인 후 [3-5](#3-5-메시징-채널-연결-telegram-bot-선택) 에서 추가) |
 
 종료 후 확인:
 
@@ -222,34 +255,41 @@ ls -la ~/.openclaw/
 # workspace/      (스킬·세션·로그)
 # skills/         (managed 스킬)
 
-# 보안 베이스라인 즉시 점검
+# 보안 베이스라인 즉시 점검 (둘 다 "127.0.0.1" / "loopback" 이어야 ✅)
 jq '.gateway.host, .gateway.bind' ~/.openclaw/openclaw.json
-# 둘 다 "127.0.0.1" / "loopback" 이어야 ✅
+
+# onboard 가 user systemd 유닛을 깔았는지
+systemctl --user list-unit-files openclaw.service
 ```
 
 > 🚨 **여기서 잠깐 멈추고 통독**: [`docs/07-openclaw-hardening.md`](./07-openclaw-hardening.md) — 30분이면 다 읽힙니다. CVE / reverse-proxy / 스킬 리뷰 / 사고 대응. Gateway 띄우기 전 베이스라인 확인이 핵심.
 
 ❌ 실패 시: [`troubleshooting.md`](./troubleshooting.md) C 절 / [`docs/03 §3`](./03-openclaw-install.md#3-온보딩--openclaw-onboard).
 
-### 3-3. Gateway 띄우고 페어링
+### 3-3. Gateway 가동
 
-별도 tmux 창 또는 백그라운드에서:
-
-```bash
-openclaw gateway --port 18789 --verbose
-```
-
-Telegram BotFather 로 봇 생성 → `bot token` 을 `~/.openclaw-secrets/env` 에 저장 (권한 600) → onboard 가 안 했으면 수동으로:
+3-2 의 `--install-daemon` 이 user systemd 유닛을 깔았으므로 다음 한 줄이면 됩니다:
 
 ```bash
-export TELEGRAM_BOT_TOKEN="123456:abcdef..."
-openclaw config set channels.telegram.enabled true
-openclaw config set channels.telegram.botToken "$TELEGRAM_BOT_TOKEN"
-openclaw config set channels.telegram.dmPolicy "pairing"
-
-# Telegram 에서 본인 봇에게 /start → 표시된 코드를 입력
-openclaw pair --channel telegram --code <코드>
+systemctl --user start openclaw
+sudo loginctl enable-linger "$USER"   # 로그아웃 후에도 살아있게 (1회만)
 ```
+
+✅ 체크:
+
+```bash
+systemctl --user is-active openclaw      # active
+(echo >/dev/tcp/127.0.0.1/18789) 2>&1 && echo "gateway up"
+```
+
+> 💡 user 유닛이 안 깔렸거나 (`--install-daemon` 옵션 생략 등) 디버깅하고 싶으면 별도 tmux 창에서 foreground 로:
+> ```bash
+> tmux new -s openclaw
+> openclaw gateway --port 18789 --verbose
+> # Ctrl+b d 로 분리, tmux attach -t openclaw 로 다시 보기
+> ```
+
+❌ 실패 시: [`troubleshooting.md`](./troubleshooting.md) B절 (systemd) — 특히 `journalctl --user -u openclaw -n 50 --no-pager` 로 원인 확인.
 
 ### 3-4. ★ 끝-끝 검증 — `examples/hello-agent`
 
@@ -281,54 +321,106 @@ journalctl --user -u openclaw -n 30 --no-pager | grep -i 'skill.*hello' && echo 
 `bash run.sh` 가 종료 코드 0 으로 끝나면 ✅. **여기까지 됐으면 본 저장소의 약속이 실제로 동작한다는 증거.**
 
 ❌ 실패 시:
-- gateway 미기동 → 별도 창에서 `openclaw gateway --verbose` 확인
-- 모델 호출 실패 → `~/.openclaw/openclaw.json` 의 `agents.defaults.model.primary` + 해당 provider API key 점검
-- 스킬 매칭 안 됨 → `description` 이 명확한지, `~/.openclaw/skills/hello/SKILL.md` 가 실제로 생겼는지
+- gateway 미기동 → 3-3 의 `systemctl --user is-active openclaw` 재확인
+- 모델 호출 실패 (401/429) → `~/.openclaw/openclaw.json` 의 `agents.defaults.model.primary` + 해당 provider API key (3-0 발급분) 가 유효한지 / 한도 초과 아닌지
+- 스킬 매칭 안 됨 → `~/.openclaw/skills/hello/SKILL.md` 가 실제로 생겼는지 (`ls -la ~/.openclaw/skills/hello/`)
 
-> ⏸ **여기서 멈춰도 됨** — 운영 전환은 Phase 4. 지금까지가 "맛보기" 라면 충분.
+> ⏸ **여기서 멈춰도 됨** — Phase 4 의 보안 마무리만 끝내면 운영 가동.
+
+### 3-5. 메시징 채널 연결 — Telegram bot (선택)
+
+모바일에서 OpenClaw 에 말 걸고 싶으면 Telegram 봇으로 연결. **첫 1주는 본인만 페어링 (`dmPolicy: pairing` + `allowFrom` 본인 user id 만)**.
+
+**A. BotFather 로 봇 만들기 (5분, 1회)**:
+
+1. Telegram 앱에서 [@BotFather](https://t.me/BotFather) 검색해서 대화 시작
+2. `/newbot` 입력 → BotFather 가 봇 이름과 username 을 묻습니다
+   - 이름 (display name) — 자유롭게: 예 `My OpenClaw`
+   - username — 반드시 `_bot` 으로 끝나야 함: 예 `mypi_openclaw_bot`
+3. 마지막에 BotFather 가 **HTTP API 토큰** 을 줍니다: `123456789:ABC-DEF1234ghIklzyx57W2v1u123ew11` 형태 — 안전한 곳에 즉시 복사
+
+**B. OpenClaw 에 등록**:
+
+```bash
+mkdir -p ~/.openclaw-secrets && chmod 700 ~/.openclaw-secrets
+cat > ~/.openclaw-secrets/telegram.env <<'EOF'
+TELEGRAM_BOT_TOKEN=123456789:ABC-...
+EOF
+chmod 600 ~/.openclaw-secrets/telegram.env
+
+source ~/.openclaw-secrets/telegram.env
+openclaw config set channels.telegram.enabled true
+openclaw config set channels.telegram.botToken "$TELEGRAM_BOT_TOKEN"
+openclaw config set channels.telegram.dmPolicy "pairing"
+
+systemctl --user restart openclaw
+```
+
+**C. 페어링 (본인 user id 화이트리스트)**:
+
+1. Telegram 앱에서 본인이 만든 봇 (`@mypi_openclaw_bot`) 검색 → `/start` 전송
+2. OpenClaw 가 봇 응답에 페어링 코드를 표시 (예: `Pair code: 7HQK2`)
+3. Pi 에서:
+
+   ```bash
+   openclaw pair --channel telegram --code 7HQK2
+   ```
+
+4. 페어링 끝 → 본인 Telegram user id 가 `channels.telegram.allowFrom` 에 자동 등록. 다른 사람이 같은 봇에 말 걸어도 차단.
+
+✅ 체크:
+
+```bash
+# Telegram 봇에 메시지 보내기 (모바일 앱에서):
+hello
+
+# 응답이 ok 한 단어로 와야 함 (3-4 의 hello 스킬이 매칭)
+```
+
+❌ 실패 시: [`docs/03 §5`](./03-openclaw-install.md#5-메시징-채널-연결--telegram-예시) 의 트러블슈팅 / [`troubleshooting.md` E절](./troubleshooting.md#e-에이전트-호출--도구-사용).
 
 ---
 
 ## Phase 4 — 운영 전환 (systemd 24/7)
 
-### 4-1. 통합 패턴 한 번 읽기 — [`docs/04-integration.md`](./04-integration.md)
+### 4-1. 영구 활성화 + 부팅 자동 시작
 
-15분 분량. **꼭 읽어야 하는 절**:
-
-- §2-1 단발 위임 패턴 — `claude -p --add-dir ... --output-format json`
-- §3 CLAUDE.md 활용
-- §4 권한 화이트리스트 (settings.json `permissions.deny` 우선 원칙)
-
-### 4-2. systemd 전환 — [`docs/05-headless-ops.md`](./05-headless-ops.md)
-
-**권장 (user 모드)**: 3-2 의 `openclaw onboard --install-daemon` 가 이미 user systemd 유닛을 만들었다. 그저 활성화만:
+3-3 의 `systemctl --user start` 와 `loginctl enable-linger` 가 안 됐다면 이번에:
 
 ```bash
-systemctl --user start openclaw
-systemctl --user enable openclaw
-
-# 로그아웃해도 살아있게
-sudo loginctl enable-linger "$USER"
+systemctl --user enable openclaw                 # 부팅 시 자동 시작
+sudo loginctl enable-linger "$USER"              # 로그아웃해도 살아있게
 ```
 
-**시스템 모드** (가족 공용 / 격리 필요): [`docs/05` §2-1](./05-headless-ops.md#2-1-시스템-모드-사전-준비) 의 전용 사용자 + `/opt/openclaw` 절차 — 1인 운영이면 user 모드가 단순하니 그쪽으로.
-
-✅ 체크 (user 모드 기준):
+✅ 체크:
 
 ```bash
-systemctl --user is-active openclaw            # active
-journalctl --user -u openclaw -n 20 --no-pager
-bash scripts/healthcheck.sh && echo "HC OK"    # 종료 코드 0 또는 2(warn-only)
+systemctl --user is-active openclaw              # active
+systemctl --user is-enabled openclaw             # enabled
+loginctl show-user "$USER" --property=Linger     # Linger=yes
+bash scripts/healthcheck.sh && echo "HC OK"      # 종료 코드 0 또는 2(warn-only)
 ```
 
 ❌ 실패 시: [`troubleshooting.md`](./troubleshooting.md) B절 (systemd) — B1 재시작 루프 / B2 권한.
 
-### 4-3. 보안 마무리
+> 💡 **시스템 모드** (가족 공용 / 강한 격리): [`docs/05` §2-1](./05-headless-ops.md#2-1-시스템-모드-사전-준비) 의 전용 사용자 + `/opt/openclaw` 절차. 1인 개인 운영이면 user 모드면 충분.
 
-[`README.md` 의 "보안 · 운영 주의사항"](../README.md#보안--운영-주의사항) 의 체크박스 5개 — SSH 하드닝 / 방화벽 / 사용자 분리 / 토큰 보호 / 백업.
-세부 절차는 [`docs/05-headless-ops.md`](./05-headless-ops.md) §4 ("원격 접근").
+### 4-2. 보안 마무리 — [`docs/07`](./07-openclaw-hardening.md) 통독 + 체크리스트
 
-> ✅ **여기까지 = 운영 가동 완료.** 24/7 백그라운드에서 OpenClaw 가 큐를 돌립니다.
+본 가이드의 가장 중요한 마지막 단계입니다. [`docs/07-openclaw-hardening.md`](./07-openclaw-hardening.md) 의:
+
+- **§2 Gateway 보안 베이스라인** — `host=127.0.0.1`, `bind=loopback`, `auth.mode=token` 적용 확인
+- **§4 ClawHub 스킬 안전 정책** — 외부 스킬 설치 전 5단계 사람 리뷰
+- **§5 자격증명 보호** — `~/.openclaw/` 권한 700 + 백업 분리
+- **§6 Prompt Injection 운영 완화** — 메시지 출처 화이트리스트 + 1주일 그림자 가동
+
+추가로 [`README` 보안 절](../README.md#보안--운영-주의사항) 의 일반 Pi 위생 (SSH 하드닝, 방화벽, fail2ban).
+
+### 4-3. (선택) Claude Code CLI 와 연계하려면
+
+Phase 2 를 끝낸 사람만 해당. [`docs/04-integration §3`](./04-integration.md#3-claude-code-cli-가-같이-있는-의미) — 두 도구를 같이 쓰는 패턴 (OpenClaw 는 메시징 자율 응답, Claude Code 는 사람 vibe-coding).
+
+> ✅ **여기까지 = 운영 가동 완료.** OpenClaw 가 24/7 백그라운드에서 메시지에 응답하거나 cron 스킬을 돌립니다.
 
 ---
 
@@ -351,11 +443,11 @@ bash scripts/healthcheck.sh && echo "HC OK"    # 종료 코드 0 또는 2(warn-o
 
 | 증상 카테고리 | 점프 |
 |---|---|
-| OAuth / 인증 / 토큰 | [`troubleshooting.md`](./troubleshooting.md) **A절** |
+| OAuth / 인증 / 토큰 (Claude Code) | [`troubleshooting.md`](./troubleshooting.md) **A절** |
 | systemd 유닛 / 워치독 | **B절** |
-| npm / Node 빌드 / OpenClaw 설치 | **C절** |
+| npm / Node 빌드 / OpenClaw 설치 / PATH | **C절** |
 | OOM / throttle / 디스크 | **D절** |
-| `claude` 호출 / 큐 / 권한 거부 | **E절** |
+| OpenClaw 에이전트 호출 / 스킬 매칭 / 도구 거부 | **E절** |
 | 네트워크 / DNS / SSL | **F절** |
 | 보안 (fail2ban / credentials 누출) | **G절** |
 
@@ -367,12 +459,18 @@ bash scripts/healthcheck.sh && echo "HC OK"    # 종료 코드 0 또는 2(warn-o
 
 Phase 별로 끝났는지 빠르게 확인:
 
-- [ ] **P1** `bash scripts/bootstrap-pi.sh` 통과 + `node --version` ≥ v22
-- [ ] **P2** `claude -p "say ok"` → `ok` 출력 (Claude Code CLI 가 살아있음 — 선택)
-- [ ] **P3a** `openclaw onboard --install-daemon` 종료 + `~/.openclaw/openclaw.json` 생성 + `gateway.bind` = `"loopback"`
-- [ ] **P3b** `examples/hello-agent` `run.sh` 종료 코드 0 (스킬 매칭 + agent 응답 `ok`)
-- [ ] **P4** `systemctl --user is-active openclaw` = `active` + `healthcheck.sh` 종료 코드 0/2
+- [ ] **P1 (필수)** `bash scripts/bootstrap-pi.sh` 통과 + `node --version` ≥ v22
+- [ ] **P2 (선택)** `claude -p "say ok"` → `ok` 출력 (스킵해도 무방)
+- [ ] **P3a (필수)** BYOK API key 발급 + `openclaw onboard --install-daemon` 종료 + `~/.openclaw/openclaw.json` 생성 + `gateway.bind` = `"loopback"`
+- [ ] **P3b (필수)** `systemctl --user is-active openclaw` = `active` + `examples/hello-agent` `run.sh` 종료 코드 0
+- [ ] **P3c (선택)** Telegram 봇 페어링 → 모바일에서 `hello` 보내면 `ok` 응답
+- [ ] **P4 (필수)** `systemctl --user is-enabled openclaw` = `enabled` + `loginctl Linger=yes` + `docs/07` 통독
 
-5개 모두 ✅ 면 본 저장소의 약속이 당신의 Pi 에서 살아있는 상태입니다.
+필수 4개 (P1/P3a/P3b/P4) 가 모두 ✅ 면 본 저장소의 약속이 당신의 Pi 에서 살아있는 상태입니다.
 
-> 🚨 마지막으로 [`docs/07-openclaw-hardening.md`](./07-openclaw-hardening.md) §2 (gateway 보안 베이스라인) 와 §4 (스킬 리뷰 정책) 을 한 번 더 통독하세요 — 첫 일주일은 dmPolicy=pairing + allowFrom 본인만 + 신규 스킬 자동 설치 금지 상태로 그림자 가동.
+> 🚨 **마지막 보안 확인**: 첫 일주일은 다음 조건으로 그림자 가동하세요:
+> - `channels.*.dmPolicy: "pairing"` + `allowFrom` 본인만
+> - 신규 스킬 자동 설치 금지 (`openclaw skills install` 은 수동만)
+> - `gateway.bind: "loopback"` 유지 (외부 노출 금지)
+>
+> 이 셋이 깨지면 [docs/07 §1](./07-openclaw-hardening.md#1-알려진-cve--취약점-인벤토리) 의 위험에 노출됩니다.
