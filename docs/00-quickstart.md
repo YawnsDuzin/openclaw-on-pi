@@ -176,68 +176,114 @@ claude -p "say 'ok' and nothing else" # ok 한 단어
 
 ## Phase 3 — OpenClaw + 첫 동작 검증
 
-### 3-1. OpenClaw 설치
+### 3-1. OpenClaw 설치 (npm 글로벌)
 
 ```bash
 bash scripts/install-openclaw.sh
 ```
 
-스크립트가 자동 모드 감지 (pipx > pip > git). 모드 강제:
-
-```bash
-OPENCLAW_INSTALL_MODE=pipx bash scripts/install-openclaw.sh
-```
+스크립트가 하는 일: Node 22+ 검증 → `npm install -g openclaw@latest` → 최소 안전 버전 (2026.2.6) 검사 → 다음 단계 안내.
 
 ✅ 체크:
 
 ```bash
-openclaw --version
-which openclaw
+openclaw --version            # ≥ 2026.2.6 (CVE-2026-25253 패치 + VirusTotal 스캐너)
+which openclaw                # ~/.npm-global/bin/openclaw
 ```
 
-PATH 에 안 잡히면 `~/.bashrc` 에 `export PATH="$HOME/.local/bin:$PATH"` 추가 후 `source ~/.bashrc`.
+PATH 에 안 잡히면 → [`troubleshooting.md` C6](./troubleshooting.md#c6).
 
-❌ 실패 시: [`docs/03-openclaw-install.md`](./03-openclaw-install.md) §2 / [`troubleshooting.md`](./troubleshooting.md) C2 (ARM64 휠 빌드).
+❌ 버전이 미달이면: `npm install -g openclaw@latest` 로 갱신. 갱신 후에도 미달이면 [`docs/07 §1`](./07-openclaw-hardening.md#1-알려진-cve--취약점-인벤토리) 의 CVE 인벤토리에서 영향 평가.
 
-### 3-2. 설정 파일 복사 — [`docs/03-openclaw-install.md`](./03-openclaw-install.md)
+### 3-2. 대화형 온보딩 — `openclaw onboard`
+
+OpenClaw 의 첫 실행은 **대화형 마법사**. BYOK 토큰 / 채널 / Gateway 토큰을 한 번에 물어 `~/.openclaw/openclaw.json` 을 생성.
 
 ```bash
-mkdir -p /home/dzp/dzp_main/program/openclaw-work
-cp configs/openclaw.example.yaml /home/dzp/dzp_main/program/openclaw-work/openclaw.yaml
-cp configs/CLAUDE.example.md     /home/dzp/dzp_main/program/openclaw-work/CLAUDE.md
-cp configs/claude-code-settings.example.json ~/.claude/settings.json
+openclaw onboard --install-daemon
 ```
 
-[`docs/03`](./03-openclaw-install.md) §3 표를 보고 **`/home/dzp/dzp_main/program/openclaw-work/openclaw.yaml`** 에서 다음 키만 자기 환경에 맞게:
+대화형으로 묻는 항목 (질문 순서/문구는 버전마다 다를 수 있음):
 
-- `runtime.claude_code.model` (Pi 4 라면 `claude-haiku-4-5-20251001` 권장)
-- `queues[].max_concurrent` (Pi 4 4GB → `1`, Pi 5 8GB → `2`)
+| 항목 | 본 가이드 권장 답 |
+|---|---|
+| 1순위 모델 | `anthropic/claude-sonnet-4-6` (또는 보유한 다른 provider) |
+| Anthropic API key | 본인 키 — 없으면 console.anthropic.com 에서 발급 |
+| Gateway 포트 | `18789` (기본) |
+| Gateway 바인딩 | **`loopback`** (외부 노출 금지 — 권장 강제) |
+| systemd daemon 설치 | `yes` (24/7 가동) |
+| 메시징 채널 활성화 | **`Telegram only` + dmPolicy `pairing`** (첫 1주는 본인 페어링만) |
 
-### 3-3. ★ 끝-끝 검증 — `examples/hello-agent`
+종료 후 확인:
 
-**가장 중요한 체크포인트.** 이게 통과하면 OpenClaw ↔ Claude Code 파이프라인이 살아있다는 뜻.
+```bash
+ls -la ~/.openclaw/
+# openclaw.json   (JSON5 설정)
+# workspace/      (스킬·세션·로그)
+# skills/         (managed 스킬)
+
+# 보안 베이스라인 즉시 점검
+jq '.gateway.host, .gateway.bind' ~/.openclaw/openclaw.json
+# 둘 다 "127.0.0.1" / "loopback" 이어야 ✅
+```
+
+> 🚨 **여기서 잠깐 멈추고 통독**: [`docs/07-openclaw-hardening.md`](./07-openclaw-hardening.md) — 30분이면 다 읽힙니다. CVE / reverse-proxy / 스킬 리뷰 / 사고 대응. Gateway 띄우기 전 베이스라인 확인이 핵심.
+
+❌ 실패 시: [`troubleshooting.md`](./troubleshooting.md) C 절 / [`docs/03 §3`](./03-openclaw-install.md#3-온보딩--openclaw-onboard).
+
+### 3-3. Gateway 띄우고 페어링
+
+별도 tmux 창 또는 백그라운드에서:
+
+```bash
+openclaw gateway --port 18789 --verbose
+```
+
+Telegram BotFather 로 봇 생성 → `bot token` 을 `~/.openclaw-secrets/env` 에 저장 (권한 600) → onboard 가 안 했으면 수동으로:
+
+```bash
+export TELEGRAM_BOT_TOKEN="123456:abcdef..."
+openclaw config set channels.telegram.enabled true
+openclaw config set channels.telegram.botToken "$TELEGRAM_BOT_TOKEN"
+openclaw config set channels.telegram.dmPolicy "pairing"
+
+# Telegram 에서 본인 봇에게 /start → 표시된 코드를 입력
+openclaw pair --channel telegram --code <코드>
+```
+
+### 3-4. ★ 끝-끝 검증 — `examples/hello-agent`
+
+**가장 중요한 체크포인트.** 이게 통과하면 OpenClaw 파이프라인 (스킬 매칭 → 모델 호출 → 채널 응답) 이 살아있다는 뜻.
 
 ```bash
 cd /home/dzp/dzp_main/program/openclaw-work
 cp -r /home/dzp/dzp_main/program/openclaw-on-pi/examples/hello-agent .
 cd hello-agent
+
 bash run.sh
 ```
 
-✅ 체크 (모두 통과해야 OK):
+스크립트가 하는 일 (예제 README 참고):
+
+1. `~/.openclaw/skills/hello/SKILL.md` 설치 (frontmatter `name: hello` + `description: 단순 'hello' 응답`)
+2. Gateway 가 떠 있는지 점검
+3. `openclaw agent --message "hello" --thinking high` 호출
+4. 응답이 정확히 `ok` 한 단어인지 검증
+
+✅ 체크:
 
 ```bash
-git log -1 --pretty=%s | grep -q "^chore(hello): hello-agent demo run$" && echo "commit OK"
-git show --stat HEAD | grep -q "README.md"                              && echo "diff OK"
-grep -q "OpenClaw says hi at " README.md                                && echo "content OK"
+echo "[검증] 응답이 'ok' 한 단어:"  # run.sh 가 자체 검증 + 종료 코드 0
+echo "[검증] gateway 로그에 skill=hello 매칭 기록:"
+journalctl --user -u openclaw -n 30 --no-pager | grep -i 'skill.*hello' && echo OK
 ```
 
-3줄 모두 출력되면 ✅. **여기까지 됐으면 본 저장소의 약속이 실제로 동작한다는 증거.**
+`bash run.sh` 가 종료 코드 0 으로 끝나면 ✅. **여기까지 됐으면 본 저장소의 약속이 실제로 동작한다는 증거.**
 
 ❌ 실패 시:
-- `claude` 호출 자체 실패 → [`troubleshooting.md`](./troubleshooting.md) A4 / E1
-- 권한 거부 → E2 (settings.json 의 allow 보강)
-- 무한 재시도 → E3 (재시도 정책)
+- gateway 미기동 → 별도 창에서 `openclaw gateway --verbose` 확인
+- 모델 호출 실패 → `~/.openclaw/openclaw.json` 의 `agents.defaults.model.primary` + 해당 provider API key 점검
+- 스킬 매칭 안 됨 → `description` 이 명확한지, `~/.openclaw/skills/hello/SKILL.md` 가 실제로 생겼는지
 
 > ⏸ **여기서 멈춰도 됨** — 운영 전환은 Phase 4. 지금까지가 "맛보기" 라면 충분.
 
@@ -327,9 +373,12 @@ bash scripts/healthcheck.sh && echo "HC OK"    # 종료 코드 0 또는 2(warn-o
 
 Phase 별로 끝났는지 빠르게 확인:
 
-- [ ] **P1** `bash scripts/bootstrap-pi.sh` 통과 + `node --version` 정상
-- [ ] **P2** `claude -p "say ok"` → `ok` 출력
-- [ ] **P3** `examples/hello-agent` 검증 3줄 모두 출력
-- [ ] **P4** `systemctl is-active openclaw.service` = `active` + `healthcheck.sh` 종료 코드 0/2
+- [ ] **P1** `bash scripts/bootstrap-pi.sh` 통과 + `node --version` ≥ v22
+- [ ] **P2** `claude -p "say ok"` → `ok` 출력 (Claude Code CLI 가 살아있음 — 선택)
+- [ ] **P3a** `openclaw onboard --install-daemon` 종료 + `~/.openclaw/openclaw.json` 생성 + `gateway.bind` = `"loopback"`
+- [ ] **P3b** `examples/hello-agent` `run.sh` 종료 코드 0 (스킬 매칭 + agent 응답 `ok`)
+- [ ] **P4** `systemctl --user is-active openclaw` = `active` + `healthcheck.sh` 종료 코드 0/2
 
-4개 모두 ✅ 면 본 저장소의 약속이 당신의 Pi 에서 살아있는 상태입니다.
+5개 모두 ✅ 면 본 저장소의 약속이 당신의 Pi 에서 살아있는 상태입니다.
+
+> 🚨 마지막으로 [`docs/07-openclaw-hardening.md`](./07-openclaw-hardening.md) §2 (gateway 보안 베이스라인) 와 §4 (스킬 리뷰 정책) 을 한 번 더 통독하세요 — 첫 일주일은 dmPolicy=pairing + allowFrom 본인만 + 신규 스킬 자동 설치 금지 상태로 그림자 가동.
