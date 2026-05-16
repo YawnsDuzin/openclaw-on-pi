@@ -27,7 +27,7 @@
 
 **NVMe 권장 이유:**
 
-- microSD 는 무작위 쓰기 IOPS 가 낮아 npm/pip 설치, 로그 회전, 큐 DB 에 병목
+- microSD 는 무작위 쓰기 IOPS 가 낮아 npm 설치, 로그 회전, OpenClaw 세션 DB (`~/.openclaw/`) 에 병목
 - 24/7 운영 시 SD 마모 위험 (수개월 단위 장애 사례 다수)
 - Pi 5 + PCIe HAT 조합은 약 3–4 만원 추가로 안정성을 크게 끌어올림
 
@@ -93,7 +93,7 @@ bash scripts/bootstrap-pi.sh
 스크립트가 설치하는 항목:
 
 - `apt`: build-essential, ca-certificates, curl, git, gnupg, jq, python3{,-pip,-venv}, tmux, unzip, htop, rsync
-- Node.js LTS (NodeSource 저장소)
+- Node.js 22 (NodeSource 저장소) — OpenClaw 최소 요구 22.16, 24 권장. `NODE_MAJOR=24 bash scripts/bootstrap-pi.sh` 로 오버라이드 가능
 - 운영 디렉토리: `~/.claude` (700), `/home/dzp/dzp_main/program/openclaw-work`, `~/.local/bin`
 
 수동으로 하고 싶다면 [`scripts/bootstrap-pi.sh`](../scripts/bootstrap-pi.sh) 를 그대로 따라가면 된다.

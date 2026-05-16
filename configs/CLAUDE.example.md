@@ -1,7 +1,8 @@
-# 프로젝트 컨텍스트 (Claude Code 용)
+# 프로젝트 컨텍스트 (Claude Code CLI 용 템플릿)
 
-> 이 파일은 OpenClaw 가 작업을 시작할 때 Claude Code 에 컨텍스트로 주입하는 템플릿이다.
-> 실제 사용 시 `CLAUDE.md` 로 복사하여 프로젝트 루트에 두면 Claude Code 가 자동 로드한다.
+> 이 파일은 **사람이 직접 `claude` CLI 로 vibe-coding** 할 때 사용하는 컨텍스트 템플릿이다. 프로젝트 루트의 `CLAUDE.md` 로 복사하면 Claude Code 가 자동 로드한다.
+>
+> 📌 OpenClaw 와는 무관한 파일 — OpenClaw 의 자율 에이전트는 **SKILL.md** 를 사용 ([04 — Integration](../docs/04-integration.md) §4 참고). 같은 Pi 에서 두 도구가 공존할 수 있고 컨텍스트도 별개로 둔다.
 
 ## 이 프로젝트의 정체
 
@@ -49,8 +50,8 @@
 - 외부 네트워크 호출은 명시적으로 허용된 호스트에 한함
 - 작업 결과는 항상 새 브랜치에 커밋, 직접 main 푸시 금지
 
-## OpenClaw 자율 작업 시 추가 규칙
+## 자율 작업 안전 규칙 (Claude Code 가 비대화형 모드에서 따를 것)
 
 - 작업이 5분 이상 걸리면 중간 진행 상황을 stdout 으로 출력
 - 외부 인증이 필요한 단계가 발견되면 즉시 작업 중단 + 사용자 알림
-- 비파괴 동작만 자동 진행, 파괴적 동작은 dry-run 후 큐에 confirm 작업 추가
+- 비파괴 동작만 자동 진행, 파괴적 동작은 dry-run 결과를 보고 사람 confirm 후

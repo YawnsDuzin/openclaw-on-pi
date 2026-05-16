@@ -11,8 +11,8 @@
 병목은 거의 항상 같은 순서다:
 
 1. **쿨링** — throttling 한 번 들어오면 다른 모든 튜닝 의미 없음
-2. **저장소** — microSD IOPS 가 npm/pip/큐 쓰기에 직격
-3. **메모리 / 스왑** — 다중 워커 시 OOM
+2. **저장소** — microSD IOPS 가 npm 설치 / OpenClaw 세션 DB (`~/.openclaw/`) 쓰기에 직격
+3. **메모리 / 스왑** — 다중 에이전트 / 큰 컨텍스트 시 OOM
 4. **CPU 거버너** — Node 빌드, 큰 컨텍스트 처리 시 throttle 회피
 
 ---
@@ -139,9 +139,9 @@ echo "vm.swappiness=10" | sudo tee -a /etc/sysctl.d/99-openclaw.conf
 
 ---
 
-## 5. Node / Python ARM64 빌드
+## 5. Node (+ 선택적 Python) ARM64 빌드
 
-일부 npm/pip 패키지는 ARM64 prebuilt 휠이 없어 소스 빌드가 필요. 사전 패키지가 갖춰져 있으면 큰 문제 없음:
+일부 npm 패키지 (OpenClaw 의존성 일부, gRPC / native 모듈) 와 IoT 센서용 pip 패키지는 ARM64 prebuilt 휠이 없어 소스 빌드가 필요. 사전 패키지가 갖춰져 있으면 큰 문제 없음:
 
 ```bash
 sudo apt-get install -y build-essential python3-dev libffi-dev libssl-dev cmake pkg-config
@@ -150,21 +150,23 @@ sudo apt-get install -y build-essential python3-dev libffi-dev libssl-dev cmake 
 빌드가 너무 오래 걸리면 다음을 시도:
 
 - npm: `--prefer-online --no-audit --fund=false` 로 캐시 무관 재시도
-- pip: `--no-build-isolation` 으로 빌드 환경 재사용
+- pip (IoT 등 부수적 사용 시): `--no-build-isolation` 으로 빌드 환경 재사용
 
 ---
 
 ## 6. 모델 선택
 
-비용 / 응답속도 / 품질 trade-off. 현재 Claude 4.X 라인업 기준:
+OpenClaw 는 BYOK 다중 모델 라우팅. 비용 / 응답속도 / 품질 trade-off:
 
-| 모델 ID | 용도 | 특징 |
+| 모델 ID (provider/model) | 용도 | 특징 |
 |---|---|---|
-| `claude-opus-4-7` | 복잡한 리팩토링, 설계 | 고품질, 느림, 토큰 비쌈 |
-| `claude-sonnet-4-6` | 일상 코드 작업 | 균형. 권장 디폴트 |
-| `claude-haiku-4-5-20251001` | 짧은 분류 / 트리아지 | 빠름, 저비용 |
+| `anthropic/claude-opus-4-7` | 복잡한 리팩토링, 설계 | 고품질, 느림, 토큰 비쌈 |
+| `anthropic/claude-sonnet-4-6` | 일상 코드 작업 | 균형. 본 가이드 권장 primary |
+| `anthropic/claude-haiku-4-5-20251001` | 짧은 분류 / 트리아지 | 빠름, 저비용 |
+| `openai/gpt-5-codex` | 코드 자동완성 / 보조 | OpenAI 구독 시 fallback 후보 |
+| `google/gemini-3.1-pro` | 긴 컨텍스트 | 1M 토큰 컨텍스트 |
 
-`settings.json` 의 `"model"` 필드로 핀. 작업별로 바꾸려면 OpenClaw task 정의에서 오버라이드.
+`~/.openclaw/openclaw.json` 의 `agents.defaults.model.primary` 로 핀. 에이전트별 / 스킬별 오버라이드는 `agents.list[].model` 또는 SKILL.md frontmatter 에. Claude Code CLI (별개 도구) 도 `~/.claude/settings.json` 의 `"model"` 로 별도 핀.
 
 ---
 

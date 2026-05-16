@@ -117,12 +117,19 @@ source ~/.bashrc
 
 **확인**: `node --version`
 
-**해결**: Claude Code 는 Node 20 LTS 권장. NodeSource 로 명시적 설치:
+**해결**: 본 가이드는 **OpenClaw 가 최소 Node 22.16 (권장 24) 요구** 라 22 또는 24 로 통일. NodeSource 로 명시적 설치:
 
 ```bash
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+# 22 (본 저장소 bootstrap-pi.sh 기본값)
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# 또는 24 (권장)
+curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
 sudo apt-get install -y nodejs
 ```
+
+Claude Code CLI 도 Node 22+ 에서 정상 동작.
 
 ### C4. `bootstrap-pi.sh` 첫 단계에서 `dpkg가 중단되었습니다`
 
@@ -266,25 +273,77 @@ sudo find /var/log/openclaw -name "*.log.*.gz" -mtime +14 -delete
 
 ---
 
-## E. 작업 큐 / Claude Code 호출
+## E. 에이전트 호출 / 도구 사용
 
-### E1. `claude -p` 가 무한 대기
+> 본 가이드는 두 종류의 호출 경로가 공존: (1) **OpenClaw 의 자율 에이전트** (`openclaw agent --skill X` / 메시징 채널), (2) **Claude Code CLI** (`claude -p ...`, 사람이 직접 vibe-coding). 증상이 비슷해도 점검 위치가 다르다.
+
+### E1-OC. OpenClaw 응답이 안 옴 / 무한 대기
+
+**확인**:
+
+```bash
+# gateway 살아있는가
+(echo >/dev/tcp/127.0.0.1/18789) 2>&1 && echo "gateway up"
+
+# user 모드 daemon
+systemctl --user status openclaw
+
+# 최근 로그
+journalctl --user -u openclaw -n 50 --no-pager
+```
+
+**해결**:
+
+- timeout 명시: `~/.openclaw/openclaw.json` 의 `agents.defaults.timeoutSeconds` 또는 스킬 SKILL.md 의 frontmatter `metadata.openclaw.timeoutSeconds`
+- BYOK provider 응답 지연 확인: `agents.defaults.model.primary` 의 API key 가 만료/한도 초과 아닌지
+- systemd 유닛의 `TimeoutStopSec` 도 비현실적으로 길지 않은지
+
+### E1-CC. `claude -p` (Claude Code CLI) 가 무한 대기
 
 **확인**: 같은 명령을 `--max-turns 1` 로 다시 실행
 
-**해결**: 설정에 timeout 을 명시 (`~/.openclaw/openclaw.json` 의 `agents.defaults.timeoutSeconds` 또는 스킬 SKILL.md 의 frontmatter `metadata.openclaw.timeoutSeconds`). systemd 유닛의 `TimeoutStopSec` 도 비현실적으로 길지 않은지 확인.
+**해결**: Claude Code 의 `~/.claude/settings.json` 에 timeout 추가. OAuth 토큰이 만료된 경우 [A4](#a4-토큰-자동-갱신-실패) 절차로 재인증. OpenClaw 와는 별 경로이므로 OpenClaw 가 살아있어도 별도로 점검.
 
-### E2. 도구 사용이 거부됨 (`permission denied`)
+### E2-OC. OpenClaw 스킬이 도구 호출에 막힘
 
-**확인**: Claude Code 의 출력에 `denied by settings`
+**확인**: 응답 로그에 `tool denied` / `bin not in requires` / `policy violation`
 
-**해결**: `settings.json` 의 `permissions.allow` 에 해당 도구 패턴 추가. 추가 전에 정말 안전한 명령인지 검증할 것 — `Bash(*)` 같은 와일드카드는 절대 금지.
+**해결**:
 
-### E3. 같은 작업이 무한 재시도
+- SKILL.md frontmatter 의 `metadata.openclaw.requires.bins` 에 필요한 바이너리 명시 (`gh`, `jq` 등)
+- `~/.openclaw/openclaw.json` 의 `tools.*.policy` / `browser.ssrfPolicy.hostnameAllowlist` 확인 — deny 우선이라 명시적 allow 가 필요
+- 절대 `Bash(*)` 같은 와일드카드 화이트리스트 금지 — [docs/07 §4](./07-openclaw-hardening.md#4-스킬-clawhub-안전-정책)
 
-**확인**: `journalctl -u openclaw.service | grep -E "task=<id>" | wc -l`
+### E2-CC. Claude Code 의 도구 사용 거부 (`permission denied`)
 
-**해결**: OpenClaw 의 재시도 정책에 백오프와 max-retry 가 있는지. 없으면 dead-letter 큐로 이동시키도록 task 정의 갱신.
+**확인**: Claude Code 출력에 `denied by settings`
+
+**해결**: `~/.claude/settings.json` 의 `permissions.allow` 에 해당 도구 패턴 추가. 추가 전에 정말 안전한 명령인지 검증 — `Bash(*)` 같은 와일드카드는 절대 금지.
+
+### E3. 같은 스킬이 무한 재시도 / 동일 이슈 반복 처리
+
+**확인**:
+
+```bash
+journalctl --user -u openclaw | grep -E 'skill=cleanup-issue' | wc -l
+ls /tmp/pr-bot-state/recent-issues.txt   # 캐시 파일 존재 여부
+```
+
+**해결**:
+
+- examples/github-pr-bot 처럼 외부 상태 캐시 + 락 TTL 패턴을 스킬 본문 절차로 강제
+- OpenClaw 의 cron job 정의에 `maxRetries: 1` + `onFailure: stop` (스키마는 버전마다 다를 수 있으니 [공식 docs](https://docs.openclaw.ai/) 확인)
+- 의심 시 일단 cron 비활성 후 수동 1회 트리거로 디버깅
+
+### E4. 스킬이 매칭되지 않음 (모델이 다른 스킬을 호출하거나 무시)
+
+**확인**: `openclaw skills list` 에 본 스킬이 보이는지. SKILL.md frontmatter 의 `description` 이 명확한지.
+
+**해결**:
+
+- `description` 은 **언제 사용하는지** 까지 구체적으로 — 모델이 이름이 아니라 상황 묘사로 매칭
+- `user-invocable: true` 와 함께 슬래시 명령으로 강제 호출 (`/skill-name`)
+- 다른 비슷한 스킬이 우선 매칭된다면 그쪽 description 도 조정
 
 ---
 

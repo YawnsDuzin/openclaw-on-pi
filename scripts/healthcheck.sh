@@ -42,23 +42,23 @@ else
     warn "openclaw 바이너리 없음 (아직 설치 전이면 무시)"
 fi
 
-# ---------- 2. OAuth 자격증명 -----------------------------------------------
+# ---------- 2. Claude Code OAuth 자격증명 (선택, vibe-coding 용) ------------
 CRED="$HOME/.claude/credentials.json"
 if [[ -f "$CRED" ]]; then
     perm="$(stat -c '%a' "$CRED" 2>/dev/null || stat -f '%Lp' "$CRED")"
     if [[ "$perm" != "600" ]]; then
-        warn "credentials.json 권한이 ${perm} (권장: 600)"
+        warn "Claude Code credentials.json 권한이 ${perm} (권장: 600)"
     else
-        pass "credentials.json 권한 600 OK"
+        pass "Claude Code credentials.json 권한 600 OK"
     fi
     age_days=$(( ( $(date +%s) - $(stat -c '%Y' "$CRED" 2>/dev/null || stat -f '%m' "$CRED") ) / 86400 ))
     if (( age_days > TOKEN_MAX_AGE )); then
-        warn "OAuth 토큰 ${age_days}일 경과 (재인증 권장)"
+        warn "Claude Code OAuth 토큰 ${age_days}일 경과 (재인증 권장)"
     else
-        pass "OAuth 토큰 나이 ${age_days}일 (한도 ${TOKEN_MAX_AGE}일)"
+        pass "Claude Code OAuth 토큰 나이 ${age_days}일 (한도 ${TOKEN_MAX_AGE}일)"
     fi
 else
-    fail "OAuth 자격증명 없음 ($CRED). oauth-tunnel.sh 절차 필요."
+    warn "Claude Code OAuth 자격증명 없음 ($CRED). vibe-coding 안 쓰면 무시."
 fi
 
 # ~/.claude 디렉토리 권한
@@ -67,6 +67,35 @@ if [[ -d "$HOME/.claude" ]]; then
     if [[ "$dperm" != "700" ]]; then
         warn "~/.claude 권한이 ${dperm} (권장: 700)"
     fi
+fi
+
+# ---------- 2-bis. OpenClaw 설정 / BYOK ------------------------------------
+OC_CFG="$HOME/.openclaw/openclaw.json"
+if [[ -f "$OC_CFG" ]]; then
+    pass "OpenClaw 설정 존재: $OC_CFG"
+
+    # 디렉토리 권한
+    ocperm="$(stat -c '%a' "$HOME/.openclaw" 2>/dev/null || stat -f '%Lp' "$HOME/.openclaw")"
+    if [[ "$ocperm" != "700" ]]; then
+        warn "~/.openclaw 권한이 ${ocperm} (권장: 700 — 평문 자격증명 보호)"
+    fi
+    fperm="$(stat -c '%a' "$OC_CFG" 2>/dev/null || stat -f '%Lp' "$OC_CFG")"
+    if [[ "$fperm" != "600" ]]; then
+        warn "openclaw.json 권한이 ${fperm} (권장: 600)"
+    fi
+
+    # gateway 보안 베이스라인 — jq 가 있으면 점검
+    if command -v jq >/dev/null 2>&1; then
+        host="$(jq -r '.gateway.host // "?"' "$OC_CFG" 2>/dev/null)"
+        bind="$(jq -r '.gateway.bind // "?"' "$OC_CFG" 2>/dev/null)"
+        if [[ "$host" != "127.0.0.1" && "$host" != "localhost" ]] || [[ "$bind" != "loopback" ]]; then
+            warn "gateway.host=${host} / bind=${bind} — loopback 권장 (docs/07 §2)"
+        else
+            pass "gateway 바인딩 loopback OK"
+        fi
+    fi
+else
+    warn "OpenClaw 설정 없음 ($OC_CFG). openclaw onboard 미수행."
 fi
 
 # ---------- 3. 디스크 / 메모리 ----------------------------------------------
@@ -102,13 +131,37 @@ if command -v curl >/dev/null 2>&1; then
 fi
 
 # ---------- 5. systemd 유닛 (있으면) ----------------------------------------
+# user 모드 (openclaw onboard --install-daemon 가 만든 유닛) 우선, 없으면 system 모드.
 if command -v systemctl >/dev/null 2>&1; then
-    if systemctl list-unit-files openclaw.service >/dev/null 2>&1; then
-        if systemctl is-active --quiet openclaw.service; then
-            pass "openclaw.service active"
+    found_unit=0
+    if systemctl --user list-unit-files openclaw.service >/dev/null 2>&1 \
+       && systemctl --user list-unit-files openclaw.service | grep -q openclaw.service; then
+        found_unit=1
+        if systemctl --user is-active --quiet openclaw.service; then
+            pass "openclaw.service (user) active"
         else
-            warn "openclaw.service inactive ($(systemctl is-active openclaw.service))"
+            warn "openclaw.service (user) inactive: $(systemctl --user is-active openclaw.service 2>/dev/null || echo unknown)"
         fi
+    fi
+    if systemctl list-unit-files openclaw.service >/dev/null 2>&1 \
+       && systemctl list-unit-files openclaw.service | grep -q openclaw.service; then
+        found_unit=1
+        if systemctl is-active --quiet openclaw.service; then
+            pass "openclaw.service (system) active"
+        else
+            warn "openclaw.service (system) inactive: $(systemctl is-active openclaw.service)"
+        fi
+    fi
+    if [[ "$found_unit" -eq 0 ]]; then
+        warn "openclaw.service 유닛 없음 (user/system 양쪽). foreground 'openclaw gateway' 로 가동 중일 수 있음."
+    fi
+
+    # gateway 포트 응답 점검 (loopback)
+    GW_PORT="${HC_GATEWAY_PORT:-18789}"
+    if (echo >/dev/tcp/127.0.0.1/"$GW_PORT") 2>/dev/null; then
+        pass "gateway 응답: 127.0.0.1:$GW_PORT"
+    else
+        warn "gateway 127.0.0.1:$GW_PORT 응답 없음 (openclaw 미기동 또는 다른 포트)"
     fi
 fi
 
