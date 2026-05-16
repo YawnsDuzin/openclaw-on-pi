@@ -39,9 +39,13 @@
 ## TL;DR (요약 — 자세한 절차는 quickstart 참고)
 
 ```bash
+# 0) 작업 베이스 디렉토리 (모든 단계 공통 — 사용자 dzp 기준)
+mkdir -p /home/dzp/dzp_main/program
+cd /home/dzp/dzp_main/program
+
 # 1) 부트스트랩
 git clone https://github.com/YawnsDuzin/openclaw-on-pi.git
-cd openclaw-on-pi
+cd /home/dzp/dzp_main/program/openclaw-on-pi
 bash scripts/bootstrap-pi.sh
 
 # 2) Claude Code 설치 + OAuth 인증
@@ -51,12 +55,15 @@ claude login
 
 # 3) OpenClaw 설치 + 첫 동작 검증
 bash scripts/install-openclaw.sh
-cp -r examples/hello-agent ~/openclaw-work/ && cd ~/openclaw-work/hello-agent
+cp -r examples/hello-agent /home/dzp/dzp_main/program/openclaw-work/ \
+  && cd /home/dzp/dzp_main/program/openclaw-work/hello-agent
 bash run.sh
 
 # 4) 헬스체크
-bash ~/openclaw-on-pi/scripts/healthcheck.sh
+bash /home/dzp/dzp_main/program/openclaw-on-pi/scripts/healthcheck.sh
 ```
+
+> 📁 **경로 규약**: 본 가이드는 `/home/dzp/dzp_main/program/` 을 작업 베이스로 사용합니다. 다른 사용자/경로를 쓰려면 모든 `/home/dzp/dzp_main/program` 을 `$HOME/dzp_main/program` 또는 본인 경로로 치환하세요.
 
 > 헤드리스 환경에서 OAuth 브라우저 콜백을 받는 방법은 [`docs/02-claude-code-oauth.md`](docs/02-claude-code-oauth.md) 참고.
 

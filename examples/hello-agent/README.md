@@ -31,8 +31,8 @@ hello-agent/
 ## 사용법
 
 ```bash
-cd ~/openclaw-work
-cp -r <repo>/examples/hello-agent .
+cd /home/dzp/dzp_main/program/openclaw-work
+cp -r /home/dzp/dzp_main/program/openclaw-on-pi/examples/hello-agent .
 cd hello-agent
 
 bash run.sh

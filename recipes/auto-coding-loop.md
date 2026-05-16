@@ -29,7 +29,7 @@
 
 ### 1) 작업 정의
 
-`~/openclaw-work/auto-loop/tasks.yaml` (예시 — OpenClaw 의 정확한 스키마는 본 저장소에 적용 시 확인):
+`/home/dzp/dzp_main/program/openclaw-work/auto-loop/tasks.yaml` (예시 — OpenClaw 의 정확한 스키마는 본 저장소에 적용 시 확인):
 
 ```yaml
 - name: cleanup-issues

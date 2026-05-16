@@ -72,9 +72,14 @@ fi
 
 # ---------- 운영 디렉토리 ----------------------------------------------------
 USER_HOME="$(getent passwd "$USER" | cut -d: -f6)"
-mkdir -p "$USER_HOME/.claude" "$USER_HOME/openclaw-work" "$USER_HOME/.local/bin"
+# 작업 베이스: 기본 $HOME/dzp_main/program (사용자 dzp 기준 /home/dzp/dzp_main/program)
+# 다른 경로를 쓰려면 OPENCLAW_PROGRAM_BASE 환경변수로 오버라이드.
+PROGRAM_BASE="${OPENCLAW_PROGRAM_BASE:-$USER_HOME/dzp_main/program}"
+WORK_DIR="$PROGRAM_BASE/openclaw-work"
+
+mkdir -p "$USER_HOME/.claude" "$WORK_DIR" "$USER_HOME/.local/bin"
 chmod 700 "$USER_HOME/.claude"
-ok "디렉토리 준비 완료 (~/.claude, ~/openclaw-work)"
+ok "디렉토리 준비 완료 (~/.claude, $WORK_DIR)"
 
 # ---------- PATH 점검 -------------------------------------------------------
 if ! echo "$PATH" | tr ':' '\n' | grep -qx "$USER_HOME/.local/bin"; then

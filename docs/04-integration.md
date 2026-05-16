@@ -68,7 +68,7 @@ git -C "$WORKDIR" diff --stat
 
 ## 3. CLAUDE.md 활용
 
-`~/openclaw-work/<project>/CLAUDE.md` 는 그 프로젝트의 영속 컨텍스트다. 다음을 적어두면 모든 호출에 자동 적용:
+`/home/dzp/dzp_main/program/openclaw-work/<project>/CLAUDE.md` 는 그 프로젝트의 영속 컨텍스트다. 다음을 적어두면 모든 호출에 자동 적용:
 
 - 프로젝트 정체 / 디렉토리 가이드
 - 코드 컨벤션 (포맷터, 들여쓰기, 커밋 형식)

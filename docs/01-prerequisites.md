@@ -81,16 +81,20 @@ ip -br addr
 본 저장소의 부트스트랩 스크립트가 한 번에 처리:
 
 ```bash
+mkdir -p /home/dzp/dzp_main/program
+cd /home/dzp/dzp_main/program
 git clone https://github.com/YawnsDuzin/openclaw-on-pi.git
-cd openclaw-on-pi
+cd /home/dzp/dzp_main/program/openclaw-on-pi
 bash scripts/bootstrap-pi.sh
 ```
+
+> 📁 본 가이드는 `/home/dzp/dzp_main/program/` 을 작업 베이스로 가정합니다. 다른 경로를 쓰려면 `OPENCLAW_PROGRAM_BASE=$HOME/your/path bash scripts/bootstrap-pi.sh` 처럼 환경변수로 지정.
 
 스크립트가 설치하는 항목:
 
 - `apt`: build-essential, ca-certificates, curl, git, gnupg, jq, python3{,-pip,-venv}, tmux, unzip, htop, rsync
 - Node.js LTS (NodeSource 저장소)
-- 운영 디렉토리: `~/.claude` (700), `~/openclaw-work`, `~/.local/bin`
+- 운영 디렉토리: `~/.claude` (700), `/home/dzp/dzp_main/program/openclaw-work`, `~/.local/bin`
 
 수동으로 하고 싶다면 [`scripts/bootstrap-pi.sh`](../scripts/bootstrap-pi.sh) 를 그대로 따라가면 된다.
 
