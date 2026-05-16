@@ -1,15 +1,22 @@
 # openclaw-on-pi — 프로젝트 / 문서 작성 계획 (Design Spec)
 
 작성일: 2026-05-16
-상태: Approved (자율 진행 모드)
-근거: 루트 `README.md` (커밋 `910e10a` 기준)
+상태: Approved → **1차 라운드 실행 완료 (2026-05-16, HW 검증 대기)**
+근거: 루트 `README.md` (원안: 커밋 `910e10a` 기준)
+
+> 📌 본 문서는 *작성 계획* 으로 출발했고 Phase 1–6 이 동일 일자에 실행되었다. 실행 과정에서 원안 대비 다음 변경이 있었으며 본 문서에 반영되었다:
+> - **Phase 3**: `docs/00-quickstart.md` 한 페이지 가이드 추가 (총 7 → 8 문서)
+> - **Phase 5**: examples 를 *스텁만* 두려던 원안에서 **best-effort 코드 작성(⚠)** 로 정책 변경 — Pi 검증 전 활성화 시 dry-run / 그림자 가동 요구
+>
+> 모든 산출물 마커는 ⚠ (HW 미검증) · 다음 라운드는 Pi 실 환경 검증.
 
 ---
 
 ## 1. 배경 · 목표
 
 `openclaw-on-pi` 는 라즈베리파이에서 **OpenClaw 자율 에이전트** 를 **Claude Code OAuth 구독** 으로 24/7 구동하는 실전 가이드 저장소다.
-현재 상태는 README 에 명시된 대로 **blueprint** — 디렉토리 구조와 인덱스만 존재하고 실제 콘텐츠(문서·스크립트·설정·예제) 는 비어 있다.
+원안 시점(커밋 `910e10a`)에는 README 디렉토리 구조와 인덱스만 존재하는 **blueprint** 상태였고, 본 스펙은 그 안을 채우는 단계별 계획으로 작성되었다.
+2026-05-16 실행 결과 docs / scripts / configs / recipes / examples 모두 **1차 작성 완료(⚠ 마커)** — 다음 라운드는 Pi HW 검증.
 
 본 스펙의 목표:
 
@@ -98,10 +105,11 @@
 - `shellcheck scripts/*.sh` 통과 (warning 0, info 무시 허용)
 - 두 번 실행해도 동일한 결과 (idempotent)
 
-### Phase 3 — 코어 문서 (01-06 + troubleshooting)
+### Phase 3 — 코어 문서 (00-quickstart + 01-06 + troubleshooting)
 
 산출물:
 
+- `docs/00-quickstart.md` — **처음 사용자용 한 페이지 절차** (Phase 1→4, 약 1시간). 각 단계에 검증 명령 + 실패 시 점프 위치 명시. *원안 이후 추가됨*
 - `docs/01-prerequisites.md` — HW(Pi 4/5, NVMe, 쿨링), OS(RPiOS 64-bit, Ubuntu Server), 네트워크/전원/패키지 체크리스트
 - `docs/02-claude-code-oauth.md` — 헤드리스 OAuth 의 본질(브라우저 콜백 필요), SSH 포트포워딩 트릭 단계별, 토큰 위치/권한, 만료 대응
 - `docs/03-openclaw-install.md` — 설치 / 설정 / 첫 실행 / 작업 큐 정의 예
@@ -145,14 +153,27 @@
 ## 알려진 한계
 ```
 
-### Phase 5 — 예제 프로젝트 (HW 검증 필요)
+### Phase 5 — 예제 프로젝트 (정책 변경: 스텁 → best-effort 코드 ⚠)
 
-`examples/hello-agent/`, `examples/github-pr-bot/`, `examples/log-triage/` 는 **실제 코드까지 작성하면 Pi 하드웨어 + OAuth 토큰 + GitHub repo** 가 모두 필요하다. 이 세션에서는 다음만 만든다:
+**원안**: 각 예제는 README 스텁만 두고 실제 코드는 별도 PR 로 분리.
+**실행 결과**: 정적 리뷰만으로 안전성 검증 가능한 범위에서 **best-effort 코드를 작성하고 ⚠ 마커** 로 표시. 활성화 절차에 dry-run / 그림자 가동을 강제하여 가짜 자산 위험을 완화.
 
-- 각 디렉토리에 `README.md` 스텁 — 의도, 입력/출력, 디렉토리 구조 예고, "TODO: implement" 표시
-- 실제 구현은 별도 PR 단위로 분리 (각 예제마다 1 PR)
+산출물:
 
-이렇게 분리하는 이유: 동작 검증 없이 코드를 커밋하면 사용자 입장에서 가짜 자산이 된다. 스텁만 두면 README 인덱스의 약속은 지키되 사용자가 잘못된 코드를 신뢰하지 않는다.
+- `examples/hello-agent/` — 최소 동작 검증. `tasks.yaml` + `CLAUDE.md` + `run.sh`. 성공 시 README.md 끝에 1줄 추가 + 1 커밋
+- `examples/github-pr-bot/` — 이슈 → PR 자동화. `tasks.yaml` + `CLAUDE.md` + `settings.example.json` (도구 화이트리스트) + `scripts/pick-issue.sh` + `scripts/post-pr.sh`. 첫 가동 시 dry-run 1주일 그림자 가동 권장
+- `examples/log-triage/` — journald 로그 LLM 트리아지. `tasks.yaml` + `CLAUDE.md` + `prompts/triage.md` + `scripts/collect-logs.sh` (마스킹 룰셋 포함) + `scripts/publish.sh`. 첫 가동 시 `LOG_TRIAGE_PUBLISH=stdout` 으로 1주일 그림자 가동 후 채널 라우팅 활성화
+
+공통 안전 장치:
+
+- 모든 예제 README 상단에 ⚠ "Pi 미검증" 배지 + 활성화 전 dry-run/shadow 지침
+- 권한 화이트리스트(`settings.example.json`)로 셸·네트워크 도구 deny 우선
+- 파괴적 git 명령 금지를 `CLAUDE.md` 절대 규칙에 명시
+
+수용 기준:
+
+- `shellcheck examples/**/*.sh` 통과
+- Pi 검증 후 README 의 예제 마커 ⚠ → ✅ 일괄 승격
 
 ### Phase 6 — README 동기화
 
@@ -199,23 +220,25 @@
 
 ## 7. 산출물 체크리스트
 
-- [ ] Phase 1 — 저장소 토대 (12 파일)
-- [ ] Phase 2 — 스크립트 5개
-- [ ] Phase 3 — 코어 문서 7개
-- [ ] Phase 4 — 레시피 5개
-- [ ] Phase 5 — 예제 스텁 3개
-- [ ] Phase 6 — README 동기화 + 링크 검증
+- [x] Phase 1 — 저장소 토대 (LICENSE, .gitignore, .editorconfig, 이슈 템플릿 2, lint 워크플로, configs 5)
+- [x] Phase 2 — 스크립트 5개 (bootstrap-pi, install-claude-code, install-openclaw, oauth-tunnel, healthcheck)
+- [x] Phase 3 — 코어 문서 8개 (00-quickstart + 01–06 + troubleshooting)
+- [x] Phase 4 — 레시피 5개 (auto-coding-loop, remote-vibe-coding, scheduled-agent-tasks, multi-agent-orchestration, iot-bridge)
+- [x] Phase 5 — 예제 3개 (hello-agent / github-pr-bot / log-triage) — *원안 스텁 → best-effort 코드 작성* (⚠)
+- [x] Phase 6 — README 동기화 + 상태 마커 + 로드맵 갱신
 
-각 Phase 완료 시 1 커밋, 마지막에 `MEMORY.md` / 상태 라벨 갱신.
+전 Phase 1차 라운드 완료(2026-05-16). 다음: Pi 5 (8GB) 실 환경에서 부트스트랩 → OAuth → hello-agent 끝-끝 검증, 이후 마커 ⚠ → ✅ 일괄 승격.
 
 ---
 
 ## 8. 후속 (이번 세션 밖)
 
+- **Pi 5 (8GB) 실 환경 끝-끝 검증** (다음 라운드 1순위) — bootstrap → OAuth → hello-agent 통과 시 docs/scripts/configs/recipes 마커 ⚠ → ✅
+- github-pr-bot 1주일 production-shadow → 활성화
+- log-triage 마스킹 룰셋 실 로그로 보강 + 프롬프트 튜닝
 - 영문 README / 문서 페어 (README 로드맵 항목)
 - OAuth 토큰 자동 갱신 RFC
 - 멀티 에이전트 큐 매니저 설계
 - Pi 5 NPU HAT 활용 검토
-- examples/ 내 실제 코드 구현 + Pi 검증
 
 이상.
