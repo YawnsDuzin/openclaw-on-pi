@@ -9,9 +9,9 @@
 ![Status](https://img.shields.io/badge/status-WIP%20·%20blueprint-orange)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
-> ⚠️ **프로젝트 상태: WIP (문서 / 스크립트 1차 작성 완료, HW 검증 진행 중)**
-> 핵심 문서·설정·셸 스크립트는 모두 작성되었습니다 (한국어). `examples/` 코드는 의도/디렉토리 구조만 잡힌 **스텁** 상태이며, 실제 코드는 Pi 검증 후 별도 PR 로 머지됩니다.
-> 각 항목의 상태는 [문서 인덱스](#문서-인덱스) · [레시피](#레시피) 의 마커(✅/⚠/⏳) 를 보세요. 이슈·PR 환영합니다.
+> ⚠️ **프로젝트 상태: WIP (문서 / 스크립트 / 예제 코드 1차 작성 완료, HW 검증 대기)**
+> 핵심 문서·설정·셸 스크립트·예제 코드까지 모두 best-effort 로 작성되었습니다 (한국어). 다음 단계는 Pi 5 실 환경에서 부트스트랩 → OAuth → hello-agent 까지 끝-끝 검증입니다.
+> 각 항목의 상태는 [문서 인덱스](#문서-인덱스) · [레시피](#레시피) · [예제](#예제) 의 마커(✅/⚠/⏳) 를 보세요. 이슈·PR 환영합니다.
 >
 > **상태 마커 범례**:
 > ✅ 작성 완료 + Pi 에서 검증 ・ ⚠ 작성 완료, HW 미검증 (정적 리뷰만 통과) ・ ⏳ 스텁 / 미작성
@@ -185,13 +185,16 @@ OpenClaw 가 작업 큐를 돌리며, 실제 코드 작성·수정 단계에서 
 | ⚠ | [멀티 에이전트 오케스트레이션](recipes/multi-agent-orchestration.md) |
 | ⚠ | [IoT 브릿지 — GPIO / MQTT 다루기](recipes/iot-bridge.md) |
 
-### 예제 (스텁 — 코드 미작성)
+### 예제
 
 | 상태 | 예제 |
 |:-:|---|
-| ⏳ | [hello-agent](examples/hello-agent/) — 끝-끝 최소 동작 |
-| ⏳ | [github-pr-bot](examples/github-pr-bot/) — 이슈 → PR 자동화 |
-| ⏳ | [log-triage](examples/log-triage/) — journald 로그 LLM 트리아지 |
+| ⚠ | [hello-agent](examples/hello-agent/) — 끝-끝 최소 동작 (tasks.yaml + CLAUDE.md + run.sh) |
+| ⚠ | [github-pr-bot](examples/github-pr-bot/) — 이슈 → PR 자동화 (pick/post + 권한 화이트리스트) |
+| ⚠ | [log-triage](examples/log-triage/) — journald 로그 LLM 트리아지 (마스킹 + 채널 라우팅 + 패턴 캐시) |
+
+> 예제 모두 best-effort 작성 완료. 실 Pi 검증 후 ✅ 로 승격.
+> github-pr-bot / log-triage 는 첫 가동 시 반드시 dry-run / `LOG_TRIAGE_PUBLISH=stdout` 으로 1주일 그림자 가동.
 
 ---
 
@@ -260,10 +263,12 @@ A. Anthropic 측에서 스로틀링 됩니다. 에이전트 큐에서 백오프�
 - [x] systemd 유닛 (본체 + 워치독) ([configs/systemd/](configs/systemd/))
 - [x] 핵심 문서 1차 작성 (docs/01–06 + troubleshooting)
 - [x] 5종 레시피 1차 작성 ([recipes/](recipes/))
+- [x] OpenClaw + Claude Code 최소 통합 예제 코드 ([hello-agent](examples/hello-agent/))
+- [x] github-pr-bot 코드 ([github-pr-bot](examples/github-pr-bot/))
+- [x] log-triage 코드 + 마스킹 룰셋 ([log-triage](examples/log-triage/))
 - [ ] Pi 5 (8GB) 실 환경에서 부트스트랩 → OAuth → hello-agent 끝-끝 검증
-- [ ] OpenClaw + Claude Code 최소 통합 예제 (hello-agent 코드)
-- [ ] github-pr-bot 코드 + 1주 production-shadow 가동
-- [ ] log-triage 프롬프트 튜닝 + 마스킹 룰셋
+- [ ] github-pr-bot 1주 production-shadow → 활성화
+- [ ] log-triage 마스킹 룰셋 실 로그로 보강 + 프롬프트 튜닝
 - [ ] OAuth 토큰 자동 갱신 RFC
 - [ ] 멀티 에이전트 큐 매니저
 - [ ] Pi 5 NPU HAT 활용 검토
