@@ -131,9 +131,20 @@ sudo apt-get install -y nodejs
 E: dpkg가 중단되었습니다. 수동으로 'sudo dpkg --configure -a' 명령을 실행해 문제점을 바로잡으십시오.
 ```
 
-**원인**: 이전 apt/dpkg 작업이 비정상 종료되어 패키지 DB 가 half-configured 상태. 본 저장소 스크립트와 무관한 시스템 상태 문제.
+**원인**: 이전 apt/dpkg 작업이 비정상 종료. 두 가지 신호가 있다:
 
-**확인**: `sudo dpkg --audit` (비정상 항목이 출력되면 복구 필요)
+1. **half-configured 패키지**: `sudo dpkg --audit` 가 항목을 출력
+2. **중단된 트랜잭션 저널**: `/var/lib/dpkg/updates/` 에 파일이 남음 (audit 는 비어도 apt 는 거부)
+
+bootstrap-pi.sh 의 사전 점검이 `dpkg --audit` 만 통과시키고 (1) 만 잡던 시기에는 (2) 케이스가 빠져나갔다. 현재 스크립트는 `apt-get check` 까지 같이 보므로 양쪽 감지.
+
+**확인**: 두 가지 모두 확인
+
+```bash
+sudo dpkg --audit                          # 비어 있어야 정상
+sudo ls -A /var/lib/dpkg/updates/          # 비어 있어야 정상
+sudo apt-get check                         # 정상이면 종료 코드 0, 출력 없음
+```
 
 **해결**:
 

@@ -46,9 +46,27 @@ APT_LOCK="/var/lib/dpkg/lock-frontend"
 
 log "apt/dpkg 사전 점검..."
 
-# half-configured 상태 감지: 출력이 있으면 비정상
+# dpkg 비정상 상태 감지 (세 가지 신호를 OR 로 결합)
+NEEDS_DPKG_FIX=0
+
+# (a) half-configured / half-installed 패키지
 if sudo dpkg --audit 2>/dev/null | grep -q .; then
-    warn "dpkg 가 half-configured 상태입니다. 자동 복구를 시도합니다."
+    NEEDS_DPKG_FIX=1
+fi
+
+# (b) 중단된 트랜잭션 저널 — /var/lib/dpkg/updates/ 에 파일이 남으면
+#     apt 는 "dpkg가 중단되었습니다" 를 외친다 (audit 는 통과해도 발생).
+if sudo bash -c 'ls -A /var/lib/dpkg/updates/ 2>/dev/null | grep -q .'; then
+    NEEDS_DPKG_FIX=1
+fi
+
+# (c) 마지막 litmus: apt 자체가 DB 정합성을 인정하는가
+if [[ $NEEDS_DPKG_FIX -eq 0 ]] && ! sudo apt-get check >/dev/null 2>&1; then
+    NEEDS_DPKG_FIX=1
+fi
+
+if [[ $NEEDS_DPKG_FIX -eq 1 ]]; then
+    warn "dpkg 상태 비정상 (half-configured 또는 중단된 트랜잭션). 자동 복구를 시도합니다."
     log "  → sudo dpkg --configure -a"
     if ! sudo dpkg --configure -a; then
         die "dpkg --configure -a 실패. 수동 진단 필요 (troubleshooting.md C4 참고)."
