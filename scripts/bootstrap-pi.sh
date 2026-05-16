@@ -121,7 +121,8 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "
 ok "apt 패키지 완료"
 
 # ---------- Node LTS (NodeSource) ------------------------------------------
-NODE_MAJOR="${NODE_MAJOR:-20}"
+# OpenClaw 는 Node 22.16+ 가 최소 요구, 24 권장. NODE_MAJOR=24 가 가장 안전.
+NODE_MAJOR="${NODE_MAJOR:-22}"
 if command -v node >/dev/null 2>&1 && node --version | grep -q "^v${NODE_MAJOR}\."; then
     ok "Node.js v${NODE_MAJOR} 이미 설치됨: $(node --version)"
 else

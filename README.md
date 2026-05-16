@@ -27,10 +27,13 @@
 
 ## OpenClaw 가 뭔가요?
 
-`OpenClaw` 는 **작업 큐(task queue)** 를 돌면서 정의된 태스크를 단계적으로 수행하는 **자율 에이전트 프레임워크** 입니다.
-본 가이드에서는 OpenClaw 가 작업을 오케스트레이션하고, **코드 작성/수정 단계만 Claude Code 에 위임** 하도록 두 도구를 엮습니다.
+[`OpenClaw`](https://github.com/openclaw/openclaw) 는 Peter Steinberger (PSPDFKit 창업자) 가 만든 **오픈소스 자체 호스팅 자율 AI 에이전트** 입니다. 메시징 플랫폼 (Telegram / WhatsApp / Slack / Discord / iMessage 등 22+) 을 메인 UI 로, 채팅 앱에 말 걸듯 에이전트를 부립니다. TypeScript / Node.js, MIT 라이선스. 2025-11 첫 공개 (Clawdbot → Moltbot → OpenClaw), 2026-03 GitHub 스타 25만 돌파.
 
-> 📌 OpenClaw 의 설치·구성 자체는 [`docs/03-openclaw-install.md`](docs/03-openclaw-install.md) 에서 다룹니다. (작성 예정)
+본 가이드는 그 OpenClaw 를 **Raspberry Pi 에서 24/7 헤드리스로 안전하게** 띄우는 절차를 다룹니다. OpenClaw 는 BYOK 다중 모델 라우팅이라 **Anthropic Claude / OpenAI / Google / Local** 어느 쪽이든 사용 가능하며, 본 가이드의 권장 기본값은 Anthropic Claude (Pro/Max 구독자가 1차 사용자) 입니다.
+
+> 🚨 **보안 사전 공지**: OpenClaw 는 24/7 자율 셸 실행 + 외부 메시징 채널 + 자가 스킬 작성 조합으로 노출 면적이 매우 큽니다. 공개된 위험 (CVE-2026-25253 / reverse-proxy 인증 우회 93.4% / ClawHub 악성 스킬 230+ / Cisco 보고서) 을 [`docs/07-openclaw-hardening.md`](docs/07-openclaw-hardening.md) 에 정리했으니 운영 전 반드시 통독하세요.
+
+> 📌 설치·구성은 [`docs/03-openclaw-install.md`](docs/03-openclaw-install.md). 첫 끝-끝 검증은 [`docs/00-quickstart.md`](docs/00-quickstart.md).
 
 ## 처음 사용자라면
 
@@ -43,27 +46,33 @@
 mkdir -p /home/dzp/dzp_main/program
 cd /home/dzp/dzp_main/program
 
-# 1) 부트스트랩
+# 1) 본 가이드 저장소 클론 + Pi 부트스트랩 (Node 22+, 핵심 apt 패키지)
 git clone https://github.com/YawnsDuzin/openclaw-on-pi.git
 cd /home/dzp/dzp_main/program/openclaw-on-pi
 bash scripts/bootstrap-pi.sh
 
-# 2) Claude Code 설치 + OAuth 인증
+# 2) (선택) Claude Code CLI — vibe-coding 용. OpenClaw 의 모델 호출과는 별도.
 bash scripts/install-claude-code.sh
-bash scripts/oauth-tunnel.sh   # 안내문 + SSH -L 가이드
-claude login
+export PATH="$HOME/.npm-global/bin:$PATH"
+# OAuth 1회: bash scripts/oauth-tunnel.sh → 로컬 PC 에서 SSH -L → claude login
 
-# 3) OpenClaw 설치 + 첫 동작 검증
+# 3) OpenClaw 설치 + 대화형 온보딩 (BYOK 토큰 / 채널 / Gateway)
 bash scripts/install-openclaw.sh
+openclaw onboard --install-daemon
+
+# 4) Gateway 띄우고 hello 스킬로 끝-끝 검증
+openclaw gateway --port 18789 --verbose &        # 백그라운드 또는 별도 tmux 창
 cp -r examples/hello-agent /home/dzp/dzp_main/program/openclaw-work/ \
   && cd /home/dzp/dzp_main/program/openclaw-work/hello-agent
-bash run.sh
+bash run.sh                                       # SKILL.md 설치 + agent --message "hello"
 
-# 4) 헬스체크
+# 5) 헬스체크
 bash /home/dzp/dzp_main/program/openclaw-on-pi/scripts/healthcheck.sh
 ```
 
-> 📁 **경로 규약**: 본 가이드는 `/home/dzp/dzp_main/program/` 을 작업 베이스로 사용합니다. 다른 사용자/경로를 쓰려면 모든 `/home/dzp/dzp_main/program` 을 `$HOME/dzp_main/program` 또는 본인 경로로 치환하세요.
+> 📁 **경로 규약**: 본 가이드는 `/home/dzp/dzp_main/program/` 을 가이드 저장소 + 사용자 워크스페이스 베이스로 사용합니다. OpenClaw 자체의 상태/스킬/자격증명은 별도로 `~/.openclaw/` 하위에 둡니다 (OpenClaw 기본 동작 — 두 경로의 역할이 다릅니다).
+>
+> 🚨 **운영 전 필독**: [`docs/07-openclaw-hardening.md`](docs/07-openclaw-hardening.md) — CVE 인벤토리, gateway 보안 베이스라인, ClawHub 스킬 리뷰 체크리스트.
 
 > 헤드리스 환경에서 OAuth 브라우저 콜백을 받는 방법은 [`docs/02-claude-code-oauth.md`](docs/02-claude-code-oauth.md) 참고.
 
@@ -90,12 +99,14 @@ openclaw-on-pi/
 ├── .editorconfig
 │
 ├── docs/                             # 학습 순서대로 번호 부여
+│   ├── 00-quickstart.md              # 처음 사용자 — 위에서 아래로 약 1시간
 │   ├── 01-prerequisites.md           # Pi 하드웨어, OS, 네트워크, 패키지
-│   ├── 02-claude-code-oauth.md       # 헤드리스에서 OAuth 인증 (포트포워딩/SSH 트릭)
-│   ├── 03-openclaw-install.md        # OpenClaw 설치·설정·첫 실행
-│   ├── 04-integration.md             # OpenClaw ↔ Claude Code 연동
+│   ├── 02-claude-code-oauth.md       # 헤드리스 Claude Code OAuth (vibe-coding 용)
+│   ├── 03-openclaw-install.md        # OpenClaw 설치 (npm) · onboard · 첫 동작
+│   ├── 04-integration.md             # BYOK 라우팅, Claude Code 와의 관계
 │   ├── 05-headless-ops.md            # tmux, systemd, 원격 운용, 로그 수집
 │   ├── 06-performance-tuning.md      # ARM64, 스왑, NVMe, 쿨링
+│   ├── 07-openclaw-hardening.md      # CVE / gateway 보안 / 스킬 리뷰 / 사고 대응
 │   └── troubleshooting.md            # 자주 깨지는 지점들
 │
 ├── recipes/                          # 시나리오별 활용 레시피
@@ -113,9 +124,9 @@ openclaw-on-pi/
 │   └── healthcheck.sh
 │
 ├── configs/
-│   ├── openclaw.example.yaml
+│   ├── openclaw.example.json5        # OpenClaw 설정 (JSON5) — ~/.openclaw/openclaw.json
 │   ├── claude-code-settings.example.json
-│   ├── CLAUDE.example.md             # OpenClaw 가 참조할 컨텍스트 템플릿
+│   ├── CLAUDE.example.md             # Claude Code 가 참조할 컨텍스트 템플릿
 │   └── systemd/
 │       ├── openclaw.service
 │       └── openclaw-watchdog.service
@@ -157,23 +168,32 @@ openclaw-on-pi/
 ## 핵심 컨셉
 
 ```
-┌─────────────────────────────────────────────┐
-│           Raspberry Pi (24/7)               │
-│                                             │
-│  ┌────────────┐        ┌──────────────┐     │
-│  │  OpenClaw  │◄──────►│ Claude Code  │     │
-│  │  (agent)   │        │   (OAuth)    │     │
-│  └─────┬──────┘        └──────┬───────┘     │
-│        │                      │             │
-│        ▼                      ▼             │
-│   tasks / queue       ~/.claude (creds)     │
-│                                             │
-└────────┬──────────────────────┬─────────────┘
-         ▼                      ▼
-     Git / GH API         Anthropic (OAuth)
+┌─────────────────────────────────────────────────────────────┐
+│                  Raspberry Pi (24/7)                        │
+│                                                             │
+│   ┌─────────────────┐                                       │
+│   │  OpenClaw       │  ── gateway 127.0.0.1:18789 (loopback)│
+│   │  (Node 22+)     │  ── workspace ~/.openclaw/workspace   │
+│   │                 │  ── skills    ~/.openclaw/skills/*    │
+│   └────┬──────┬─────┘     (SKILL.md frontmatter + body)     │
+│        │      │                                             │
+│   ┌────▼──┐  ┌▼──────────────┐   ┌─────────────────────┐    │
+│   │ BYOK  │  │ Channels      │   │ Claude Code CLI     │    │
+│   │ 모델   │  │ (Telegram/    │   │ (선택, vibe-coding) │   │
+│   │ 라우팅│  │  Discord/...) │   │ ~/.claude/creds     │    │
+│   └───┬───┘  └────┬──────────┘   └────────┬────────────┘    │
+└───────┼───────────┼──────────────────────-┼────────────────-┘
+        ▼           ▼                       ▼
+   Anthropic /   메시징 플랫폼          Anthropic (별도 OAuth,
+   OpenAI / ...                          본 저장소 가이드의 대화형용)
 ```
 
-OpenClaw 가 작업 큐를 돌리며, 실제 코드 작성·수정 단계에서 Claude Code 를 호출. 인증은 한 번만, 토큰은 `~/.claude` 에 저장.
+**두 가지 인증 경로** 가 공존:
+
+- `~/.openclaw/openclaw.json` — OpenClaw 가 BYOK 다중 모델 라우팅에 사용 (Anthropic API key 또는 다른 provider)
+- `~/.claude/credentials.json` — Claude Code CLI 가 별도로 사용 (사람이 직접 `claude` 명령으로 vibe-coding 할 때)
+
+OpenClaw 의 *주* 인터페이스는 **메시징 채널**: 사용자가 Telegram/Discord 봇에 메시지 → OpenClaw 가 적합한 스킬 매칭 (XML 시스템 프롬프트 주입 또는 슬래시 명령) → 도구 (셸/파일/브라우저/세션) 사용 → 결과를 채널로 회신.
 
 ---
 
@@ -188,6 +208,7 @@ OpenClaw 가 작업 큐를 돌리며, 실제 코드 작성·수정 단계에서 
 | 04 | [Integration](docs/04-integration.md) | ⚠ | 두 도구 엮기 |
 | 05 | [Headless Ops](docs/05-headless-ops.md) | ⚠ | tmux · systemd · 원격 |
 | 06 | [Performance](docs/06-performance-tuning.md) | ⚠ | ARM64 · 스왑 · NVMe |
+| 07 | [**OpenClaw Hardening**](docs/07-openclaw-hardening.md) | ⚠ | **CVE · gateway 보안 · 스킬 리뷰 · 사고 대응 (운영 전 필독)** |
 | ⚠ | [Troubleshooting](docs/troubleshooting.md) | ⚠ | 자주 깨지는 지점들 |
 | 📋 | [설계 / 작성 계획](docs/superpowers/specs/2026-05-16-openclaw-on-pi-design.md) | ✅ | 본 저장소의 단계별 작성 plan |
 
@@ -207,9 +228,9 @@ OpenClaw 가 작업 큐를 돌리며, 실제 코드 작성·수정 단계에서 
 
 | 상태 | 예제 |
 |:-:|---|
-| ⚠ | [hello-agent](examples/hello-agent/) — 끝-끝 최소 동작 (tasks.yaml + CLAUDE.md + run.sh) |
-| ⚠ | [github-pr-bot](examples/github-pr-bot/) — 이슈 → PR 자동화 (pick/post + 권한 화이트리스트) |
-| ⚠ | [log-triage](examples/log-triage/) — journald 로그 LLM 트리아지 (마스킹 + 채널 라우팅 + 패턴 캐시) |
+| ⚠ | [hello-agent](examples/hello-agent/) — 끝-끝 최소 동작 (SKILL.md + run.sh, 결정적 응답 검증) |
+| ⚠ | [github-pr-bot](examples/github-pr-bot/) — 이슈 → PR 자동화 SKILL.md (`/cleanup-issue` 슬래시 명령 + cron) |
+| ⚠ | [log-triage](examples/log-triage/) — journald 로그 LLM 트리아지 SKILL.md (마스킹 + 채널 라우팅 + 패턴 캐시) |
 
 > 예제 모두 best-effort 작성 완료. 실 Pi 검증 후 ✅ 로 승격.
 > github-pr-bot / log-triage 는 첫 가동 시 반드시 dry-run / `LOG_TRIAGE_PUBLISH=stdout` 으로 1주일 그림자 가동.
@@ -218,15 +239,25 @@ OpenClaw 가 작업 큐를 돌리며, 실제 코드 작성·수정 단계에서 
 
 ## 보안 · 운영 주의사항
 
-24/7 가동되는 Pi 는 곧 **상시 인터넷 노출 자산** 입니다. 다음을 권장합니다.
+24/7 가동되는 Pi 는 곧 **상시 인터넷 노출 자산** + **자율 셸 실행 + 외부 메시징 채널 + 자가 스킬 작성 면** 입니다. 일반적인 Pi 운영 위생 + **OpenClaw 특화 위험** 둘 다 고려해야 합니다.
 
-- **OAuth 토큰 보호**: `~/.claude/` 권한 `700`, 백업 시 암호화. 토큰은 절대 깃에 커밋 금지
+### OpenClaw 특화 (필독 — 상세는 [`docs/07-openclaw-hardening.md`](docs/07-openclaw-hardening.md))
+
+- **버전 핀**: OpenClaw ≥ **2026.2.6** (CVE-2026-25253 CVSS 8.8 패치 + VirusTotal 스캐너 포함)
+- **Gateway 바인딩**: `gateway.host: "127.0.0.1"` + `gateway.bind: "loopback"` 강제. 외부 노출 인스턴스의 **약 93.4%** 가 reverse-proxy 인증 우회에 노출
+- **자격증명 평문 저장**: `~/.openclaw/` 하위가 평문 → 디렉토리 `700`, 백업 별도 분리, 침해 시 토큰 즉시 회수 절차 미리 준비
+- **ClawHub 스킬 리뷰 강제**: 자동 설치 금지. 2026-01 이후 230+ 악성 스킬 사례 (인기 1위 스킬도 데이터 외부 유출 적발). [docs/07 §4](docs/07-openclaw-hardening.md#4-스킬-clawhub-안전-정책) 의 5단계 체크리스트
+- **채널 페어링 + allowFrom**: `channels.*.dmPolicy: "pairing"` + 본인 user id 만 화이트리스트. 첫 7일 그림자 가동
+- **외부 정찰 도구 사용 고려**: Cisco *DefenseClaw* (오픈소스) 를 reverse proxy 앞단에 두는 것 적극 검토
+
+### 일반 Pi 운영 위생
+
+- **OAuth 토큰 보호**: `~/.claude/` · `~/.openclaw/` 권한 `700`, 백업 시 암호화. 토큰은 절대 깃에 커밋 금지
 - **SSH 하드닝**: 비밀번호 인증 비활성화, 키 인증 전용, `fail2ban`/`sshguard` 적용, 기본 22 포트 변경 권장
 - **사용자 분리**: 에이전트 전용 유저로 실행 (root 금지). `sudo` 는 최소화
 - **방화벽**: `ufw` 로 필요한 포트만 개방. OAuth 콜백 등은 일회성으로만 열고 닫기
-- **에이전트 도구 제한**: Claude Code `settings.json` 의 권한 규칙으로 셸·네트워크·파일 접근을 화이트리스트
-- **로그·작업 큐 백업**: 외부 저장소(별도 NAS/오브젝트 스토리지)로 정기 백업
-- **이용약관 준수**: OAuth 자격증명 공유 금지, **개인 사용 범위** 내에서 운용. 자동화 워크로드가 Anthropic 의 구독 정책에 부합하는지 사전 확인
+- **로그 백업**: 외부 저장소(별도 NAS/오브젝트 스토리지)로 정기 백업
+- **이용약관 준수**: BYOK 자격증명 공유 금지, **개인 사용 범위** 내에서 운용. 자동화 워크로드가 각 모델 제공자의 정책에 부합하는지 사전 확인
 
 ---
 
@@ -245,11 +276,13 @@ OpenClaw 가 작업 큐를 돌리며, 실제 코드 작성·수정 단계에서 
 
 ## 알려진 제약
 
-- **헤드리스 OAuth**: 최초 인증 시 브라우저 콜백 필요 → SSH 포트포워딩으로 우회 ([스크립트](scripts/oauth-tunnel.sh))
-- **ARM64 빌드 호환성**: 일부 Node / Python 패키지 prebuilt 휠 부재 → 소스 빌드
+- **공개 CVE / 보안 이슈**: CVE-2026-25253 (CVSS 8.8) / reverse-proxy 인증 우회 (93.4% 영향) / 평문 자격증명 / Prompt Injection 구조적 한계 / ClawHub 악성 스킬 230+. 운영 전 [`docs/07-openclaw-hardening.md`](docs/07-openclaw-hardening.md) 통독 필수
+- **헤드리스 OAuth (Claude Code 측)**: 최초 인증 시 브라우저 콜백 필요 → SSH 포트포워딩으로 우회 ([스크립트](scripts/oauth-tunnel.sh))
+- **ARM64 빌드 호환성**: 일부 Node 패키지 prebuilt 휠 부재 → 소스 빌드
 - **메모리 압박**: Pi 4 4GB 에서 다중 에이전트 시 OOM — zram 또는 NVMe 스왑 권장
 - **OAuth 토큰 만료**: 장기 운영 시 갱신 메커니즘 필요 (현재 수동, 자동화 검토 중)
-- **레이트 리밋**: 구독 플랜의 사용량 한도 안에서만 동작 — 다중 에이전트 시 큐 스로틀링 필요
+- **레이트 리밋**: BYOK 모델 제공자의 사용량 한도 안에서만 동작 — 다중 에이전트 시 큐 스로틀링 필요
+- **거버넌스 변화**: Steinberger 2026-02-14 OpenAI 합류, OpenClaw 는 foundation 으로 이전 — 향후 인터페이스 변경 가능성
 
 ---
 
@@ -277,18 +310,28 @@ A. Anthropic 측에서 스로틀링 됩니다. 에이전트 큐에서 백오프�
 
 ## 로드맵
 
-- [x] 베이스 설치 스크립트 ([scripts/](scripts/))
-- [x] systemd 유닛 (본체 + 워치독) ([configs/systemd/](configs/systemd/))
-- [x] 핵심 문서 1차 작성 (docs/01–06 + troubleshooting)
-- [x] 5종 레시피 1차 작성 ([recipes/](recipes/))
-- [x] OpenClaw + Claude Code 최소 통합 예제 코드 ([hello-agent](examples/hello-agent/))
-- [x] github-pr-bot 코드 ([github-pr-bot](examples/github-pr-bot/))
-- [x] log-triage 코드 + 마스킹 룰셋 ([log-triage](examples/log-triage/))
-- [ ] Pi 5 (8GB) 실 환경에서 부트스트랩 → OAuth → hello-agent 끝-끝 검증
+**라운드 1 (2026-05-16, 잘못된 청사진)** — OpenClaw 를 Python/pip 기반 작업 큐 프레임워크로 가정. 실제는 TS/Node 메시징 게이트웨이로 판명. 1차 라운드 산출물 대부분 stale.
+
+**라운드 2 (2026-05-16 재작성)** — 공식 [openclaw/openclaw](https://github.com/openclaw/openclaw) 기준으로 재작성:
+
+- [x] install-openclaw.sh npm 기반 재작성 (Node 22+ 검증, 최소 버전 핀)
+- [x] bootstrap-pi.sh Node 20 → 22
+- [x] configs/openclaw.example.json5 — 실제 설정 포맷 (JSON5)
+- [x] docs/03-openclaw-install.md — `openclaw onboard` 흐름
+- [x] docs/07-openclaw-hardening.md — CVE 인벤토리 + gateway 보안 + 스킬 리뷰
+- [x] README 아키텍처 그림 + 보안 섹션 + 알려진 제약 갱신
+- [ ] docs/00-quickstart.md Phase 3 재작성
+- [ ] docs/04-integration.md — BYOK 라우팅 관점
+- [ ] examples/{hello-agent, github-pr-bot, log-triage} — SKILL.md 기반
+- [ ] recipes 5개 — 메시징 게이트웨이 패턴 기반
+- [ ] spec 에 재작성 라운드 결정 기록
+
+**검증 / 후속**:
+
+- [ ] Pi 5 (8GB) 실 환경에서 부트스트랩 → onboard → hello-agent 끝-끝 검증
 - [ ] github-pr-bot 1주 production-shadow → 활성화
 - [ ] log-triage 마스킹 룰셋 실 로그로 보강 + 프롬프트 튜닝
-- [ ] OAuth 토큰 자동 갱신 RFC
-- [ ] 멀티 에이전트 큐 매니저
+- [ ] DefenseClaw 등 외부 보안 도구 연계 가이드
 - [ ] Pi 5 NPU HAT 활용 검토
 - [ ] 한글 / 영문 문서 페어 정리
 

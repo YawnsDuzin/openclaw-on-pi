@@ -17,7 +17,8 @@ secrets/
 credentials/
 
 # --- Local working configs (real, not example) -----------------------------
-configs/openclaw.yaml
+configs/openclaw.json
+configs/openclaw.json5
 configs/claude-code-settings.json
 configs/CLAUDE.md
 !configs/*.example.*

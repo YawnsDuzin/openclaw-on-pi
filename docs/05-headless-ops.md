@@ -6,6 +6,8 @@
 
 ---
 
+> 📜 2026-05-16 재작성 라운드 — 1차 라운드의 `openclaw run --config` 가상 명령 + `openclaw.yaml` 폐기. 실제 daemon 진입점은 `openclaw gateway`.
+
 ## 1. tmux — 첫 디버깅 단계
 
 처음 며칠은 systemd 로 백그라운드 보내기 전에 **tmux** 로 띄워두고 SSH 끊어도 살아있게 한다.
@@ -13,7 +15,7 @@
 ```bash
 tmux new -s openclaw
 # 안에서:
-openclaw run --log-level debug
+openclaw gateway --port 18789 --verbose
 # Ctrl+b d  → 분리
 # 다시 보려면:  tmux attach -t openclaw
 ```
@@ -27,12 +29,20 @@ openclaw run --log-level debug
 
 ## 2. systemd — 운영 단계
 
-본 저장소가 제공:
+**권장 (user 모드)**: `openclaw onboard --install-daemon` 가 자동으로 `~/.config/systemd/user/openclaw.service` 를 만든다. 별 사용자 격리가 필요 없는 1인 운영이면 이게 충분.
 
-- [`configs/systemd/openclaw.service`](../configs/systemd/openclaw.service) — 본 에이전트
-- [`configs/systemd/openclaw-watchdog.service`](../configs/systemd/openclaw-watchdog.service) — 워치독
+```bash
+systemctl --user start openclaw
+systemctl --user enable openclaw
+systemctl --user status openclaw
 
-### 2-1. 사전 준비
+# 사용자 로그아웃해도 살아있게 (linger)
+sudo loginctl enable-linger "$USER"
+```
+
+**시스템 모드** (가족 공용 / 다중 사용자 / 격리가 필요한 경우): 본 저장소 [`configs/systemd/openclaw.service`](../configs/systemd/openclaw.service) + [`openclaw-watchdog.service`](../configs/systemd/openclaw-watchdog.service) 를 사용. 아래 절차.
+
+### 2-1. 시스템 모드 사전 준비
 
 전용 사용자 + 디렉토리:
 
@@ -41,28 +51,25 @@ sudo useradd -r -m -d /opt/openclaw -s /usr/sbin/nologin openclaw
 sudo mkdir -p /opt/openclaw/scripts /etc/openclaw /var/lib/openclaw /var/log/openclaw
 sudo chown -R openclaw:openclaw /opt/openclaw /var/lib/openclaw /var/log/openclaw
 
-# 본 저장소 클론을 /opt/openclaw 아래에 또는 심볼릭링크
+# 본 저장소의 healthcheck.sh 만 복사
 sudo cp scripts/healthcheck.sh /opt/openclaw/scripts/
 sudo chmod +x /opt/openclaw/scripts/healthcheck.sh
 
-# 설정 파일
-sudo cp configs/openclaw.example.yaml /etc/openclaw/openclaw.yaml
-sudo chown root:openclaw /etc/openclaw/openclaw.yaml
-sudo chmod 640 /etc/openclaw/openclaw.yaml
+# openclaw 사용자로 OpenClaw 설치 + onboard
+sudo -u openclaw -H bash -lc '
+  export NPM_GLOBAL_PREFIX=/opt/openclaw/.npm-global
+  npm config set prefix "$NPM_GLOBAL_PREFIX"
+  npm install -g openclaw@latest
+  PATH=$NPM_GLOBAL_PREFIX/bin:$PATH openclaw onboard
+'
+
+# 설정 파일 위치: /opt/openclaw/.openclaw/openclaw.json (onboard 가 생성)
+sudo ls -la /opt/openclaw/.openclaw/
 ```
 
-OAuth 토큰을 openclaw 사용자도 쓰게 하려면:
+OAuth 토큰을 openclaw 사용자가 별도로 받으려면 [02 — Claude Code OAuth](./02-claude-code-oauth.md) 절차를 `sudo -u openclaw -H` 컨텍스트에서 한 번 더. 또는 본인 사용자의 `~/.claude/credentials.json` 을 복사 (보안 트레이드오프).
 
-```bash
-sudo mkdir -p /opt/openclaw/.claude
-sudo cp ~/.claude/credentials.json /opt/openclaw/.claude/
-sudo cp ~/.claude/settings.json    /opt/openclaw/.claude/   # 있으면
-sudo chown -R openclaw:openclaw /opt/openclaw/.claude
-sudo chmod 700 /opt/openclaw/.claude
-sudo chmod 600 /opt/openclaw/.claude/credentials.json
-```
-
-> 보안상 평소 사용 유저와 openclaw 시스템 유저를 분리하라. credentials 는 복사가 아닌 별도 인증을 권장하지만, 본 가이드에서는 단순화를 위해 복사 절차를 명시.
+> 시스템 모드는 격리가 더 강하지만 onboard 절차를 두 번 (user 검증 + 시스템 설치) 거쳐야 한다. 1인 운영이면 user 모드가 단순.
 
 ### 2-2. 유닛 설치
 

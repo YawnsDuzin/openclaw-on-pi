@@ -1,6 +1,19 @@
+# OpenClaw system-mode unit (시스템 전역 데몬으로 실행할 때 사용).
+#
+# 권장 경로: `openclaw onboard --install-daemon` 가 만드는 user-mode unit
+# (~/.config/systemd/user/openclaw.service). 시스템 모드는 가족 공용 / 다중 사용자 환경에만.
+#
+# 사전 준비 (시스템 모드 시):
+#   sudo useradd -r -m -d /opt/openclaw -s /usr/sbin/nologin openclaw
+#   sudo mkdir -p /etc/openclaw /var/lib/openclaw /var/log/openclaw
+#   sudo cp configs/openclaw.example.json5 /etc/openclaw/openclaw.json
+#   sudo chown -R openclaw:openclaw /opt/openclaw /var/lib/openclaw /var/log/openclaw
+#   # openclaw 바이너리는 sudo -u openclaw -H npm install -g openclaw 로 별도 설치
+
 [Unit]
-Description=OpenClaw autonomous agent
+Description=OpenClaw autonomous agent (system mode)
 Documentation=https://github.com/YawnsDuzin/openclaw-on-pi
+Documentation=https://github.com/openclaw/openclaw
 After=network-online.target
 Wants=network-online.target
 
@@ -9,8 +22,11 @@ Type=simple
 User=openclaw
 Group=openclaw
 WorkingDirectory=/opt/openclaw
+Environment=HOME=/opt/openclaw
+Environment=PATH=/opt/openclaw/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
 EnvironmentFile=-/etc/openclaw/openclaw.env
-ExecStart=/usr/bin/openclaw run --config /etc/openclaw/openclaw.yaml
+# OpenClaw 의 gateway daemon. 설정은 $HOME/.openclaw/openclaw.json (= /opt/openclaw/.openclaw/openclaw.json)
+ExecStart=/opt/openclaw/.npm-global/bin/openclaw gateway --port 18789
 Restart=on-failure
 RestartSec=10s
 TimeoutStopSec=30s
@@ -20,7 +36,7 @@ KillMode=mixed
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/var/lib/openclaw /var/log/openclaw
+ReadWritePaths=/var/lib/openclaw /var/log/openclaw /opt/openclaw/.openclaw
 PrivateTmp=true
 PrivateDevices=true
 ProtectKernelTunables=true

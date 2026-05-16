@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
-# USAGE: bash scripts/install-openclaw.sh
+# USAGE: bash scripts/install-openclaw.sh [VERSION]
 #
-# OpenClaw 설치. 본 저장소는 OpenClaw 의 공식 배포 채널을 추상화하여 호출한다.
-# 환경변수로 설치 모드를 강제할 수 있다.
+# OpenClaw (https://github.com/openclaw/openclaw) 자율 에이전트 설치.
 #
-#   OPENCLAW_INSTALL_MODE = pipx | pip | git   (기본: 자동 감지)
-#   OPENCLAW_GIT_URL      = OpenClaw 소스 저장소 URL  (mode=git 일 때)
-#   OPENCLAW_REF          = git ref (브랜치/태그/커밋, 기본 main)
-#   OPENCLAW_VENV         = mode=pip 일 때 사용할 venv 경로 (기본 ~/.openclaw-venv)
+# 인자:
+#   VERSION   설치할 npm 패키지 버전 (기본: latest, 단 최소 핀 강제)
 #
-# OpenClaw 의 공식 설치 절차가 확정되면 본 스크립트의 분기를 단순화하라.
+# 환경변수:
+#   OPENCLAW_MIN_VERSION  최소 안전 버전 (기본 2026.2.6 — CVE-2026-25253 패치(2026.1.29)
+#                         + VirusTotal 스캐너 포함 버전)
+#   NPM_GLOBAL_PREFIX     사용자 글로벌 npm prefix (기본 ~/.npm-global)
+#
+# 본 스크립트는 OpenClaw 의 *런타임* 만 설치한다. 첫 페어링·채널 연결·BYOK 토큰
+# 설정은 `openclaw onboard --install-daemon` 가 대화형으로 수행한다.
 
 set -euo pipefail
 
@@ -24,69 +27,80 @@ ok()   { printf '%s[ok]%s %s\n'               "$C_OK"   "$C_OFF" "$*"; }
 warn() { printf '%s[warn]%s %s\n'             "$C_WARN" "$C_OFF" "$*" >&2; }
 die()  { printf '%s[err]%s %s\n'              "$C_ERR"  "$C_OFF" "$*" >&2; exit 1; }
 
-MODE="${OPENCLAW_INSTALL_MODE:-auto}"
-GIT_URL="${OPENCLAW_GIT_URL:-https://github.com/openclaw/openclaw.git}"
-GIT_REF="${OPENCLAW_REF:-main}"
-VENV="${OPENCLAW_VENV:-$HOME/.openclaw-venv}"
+VERSION="${1:-latest}"
+MIN_VERSION="${OPENCLAW_MIN_VERSION:-2026.2.6}"
+NPM_GLOBAL_PREFIX="${NPM_GLOBAL_PREFIX:-$HOME/.npm-global}"
 
-# auto 감지: pipx > pip > git
-if [[ "$MODE" == "auto" ]]; then
-    if command -v pipx >/dev/null 2>&1; then
-        MODE="pipx"
-    elif command -v python3 >/dev/null 2>&1; then
-        MODE="pip"
-    else
-        MODE="git"
+# ---------- 사전 점검 -------------------------------------------------------
+command -v node >/dev/null 2>&1 || die "Node.js 가 없습니다. bootstrap-pi.sh 를 먼저 실행하세요."
+command -v npm  >/dev/null 2>&1 || die "npm 이 없습니다. bootstrap-pi.sh 를 먼저 실행하세요."
+
+NODE_MAJOR="$(node --version | sed -E 's/^v([0-9]+).*/\1/')"
+if [[ "$NODE_MAJOR" -lt 22 ]]; then
+    die "Node $NODE_MAJOR 감지. OpenClaw 는 Node 22.16+ (권장 24) 가 필요합니다. bootstrap-pi.sh 의 NODE_MAJOR 를 22 또는 24 로 올리고 재실행하세요."
+fi
+ok "Node $(node --version) 감지 (≥ 22 요구 충족)"
+
+# 글로벌 prefix 사용자 홈으로
+mkdir -p "$NPM_GLOBAL_PREFIX/bin"
+npm config set prefix "$NPM_GLOBAL_PREFIX"
+export PATH="$NPM_GLOBAL_PREFIX/bin:$PATH"
+
+# ---------- 설치 -----------------------------------------------------------
+log "@openclaw/cli (또는 openclaw) 설치 시작 (version=$VERSION, prefix=$NPM_GLOBAL_PREFIX)..."
+
+# OpenClaw 의 npm 패키지명은 'openclaw' (https://github.com/openclaw/openclaw 의 README 기준)
+# 변경 시 OPENCLAW_NPM_PKG 환경변수로 오버라이드 가능.
+PKG="${OPENCLAW_NPM_PKG:-openclaw}"
+
+npm install -g "${PKG}@${VERSION}" || die "npm install 실패. 네트워크 / 디스크 / npm prefix 권한을 점검하세요."
+
+# ---------- 설치 검증 + 최소 버전 ------------------------------------------
+if ! command -v openclaw >/dev/null 2>&1; then
+    warn "openclaw 바이너리를 PATH 에서 찾지 못했습니다. 현재 셸에 PATH 를 적용하세요:"
+    warn "  export PATH=\"$NPM_GLOBAL_PREFIX/bin:\$PATH\""
+    die  "PATH 적용 후 'openclaw --version' 으로 확인 후 다음 단계로."
+fi
+
+INSTALLED_VERSION="$(openclaw --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo unknown)"
+ok "설치 완료: openclaw $INSTALLED_VERSION"
+
+# 최소 버전 비교 (sort -V) — INSTALLED < MIN 이면 경고
+if [[ "$INSTALLED_VERSION" != "unknown" ]]; then
+    OLDEST="$(printf '%s\n%s\n' "$INSTALLED_VERSION" "$MIN_VERSION" | sort -V | head -1)"
+    if [[ "$OLDEST" != "$MIN_VERSION" ]]; then
+        warn "설치된 버전 ($INSTALLED_VERSION) 이 최소 권장 ($MIN_VERSION) 미만입니다."
+        warn "CVE-2026-25253 (CVSS 8.8) 패치가 누락된 버전일 수 있습니다 — docs/07-openclaw-hardening.md 참고."
+        warn "  → npm install -g openclaw@latest 로 갱신 권장."
     fi
 fi
-log "설치 모드: $MODE"
 
-case "$MODE" in
-    pipx)
-        log "pipx 로 openclaw 설치..."
-        pipx install openclaw || pipx upgrade openclaw
-        ;;
-    pip)
-        log "venv ($VENV) 생성 + pip install openclaw..."
-        if [[ ! -d "$VENV" ]]; then
-            python3 -m venv "$VENV"
-        fi
-        # shellcheck disable=SC1091
-        . "$VENV/bin/activate"
-        pip install --upgrade pip
-        pip install --upgrade openclaw
-        deactivate
-        # ~/.local/bin 에 진입점 심볼릭링크
-        mkdir -p "$HOME/.local/bin"
-        if [[ -x "$VENV/bin/openclaw" ]]; then
-            ln -sf "$VENV/bin/openclaw" "$HOME/.local/bin/openclaw"
-            ok "심볼릭링크: ~/.local/bin/openclaw -> $VENV/bin/openclaw"
-        fi
-        ;;
-    git)
-        SRC="$HOME/src/openclaw"
-        log "git clone $GIT_URL ($GIT_REF) → $SRC"
-        if [[ -d "$SRC/.git" ]]; then
-            git -C "$SRC" fetch --all --prune
-            git -C "$SRC" checkout "$GIT_REF"
-            git -C "$SRC" pull --ff-only || warn "fast-forward 실패 (수동 확인 필요)"
-        else
-            mkdir -p "$(dirname "$SRC")"
-            git clone --depth 1 --branch "$GIT_REF" "$GIT_URL" "$SRC"
-        fi
-        warn "git 모드는 OpenClaw 빌드/설치 절차를 추가로 따라야 합니다."
-        warn "  → $SRC/README.md 참고."
-        ;;
-    *)
-        die "알 수 없는 모드: $MODE"
-        ;;
-esac
+# ---------- 다음 단계 안내 --------------------------------------------------
+cat <<EOF
 
-if command -v openclaw >/dev/null 2>&1; then
-    ok "openclaw 사용 가능: $(openclaw --version 2>/dev/null || echo 'version 명령 없음')"
-else
-    warn "openclaw 명령을 PATH 에서 찾지 못했습니다. 위 메시지를 확인하세요."
-fi
+${C_INFO}========================================================================${C_OFF}
+${C_INFO} 다음 단계${C_OFF}
+${C_INFO}========================================================================${C_OFF}
 
-PROGRAM_BASE="${OPENCLAW_PROGRAM_BASE:-$HOME/dzp_main/program}"
-log "다음 단계: configs/openclaw.example.yaml → $PROGRAM_BASE/openclaw-work/openclaw.yaml 로 복사 후 수정"
+1) 대화형 온보딩 (BYOK 토큰 / 페어링 / 채널 연결):
+
+     ${C_OK}openclaw onboard --install-daemon${C_OFF}
+
+   설정 파일 위치: ~/.openclaw/openclaw.json (JSON5)
+   워크스페이스:    ~/.openclaw/workspace/
+   스킬 디렉토리:   ~/.openclaw/skills/
+
+2) Gateway 띄우기 (loopback 바인딩 권장 — 외부 노출 금지):
+
+     ${C_OK}openclaw gateway --port 18789 --verbose${C_OFF}
+
+3) 에이전트 호출:
+
+     ${C_OK}openclaw agent --message "ship checklist" --thinking high${C_OFF}
+
+${C_WARN}[보안 필독]${C_OFF} 외부 reverse proxy 뒤에 두려면 docs/07-openclaw-hardening.md 의
+gateway.trustedProxies / gateway.bind 설정을 먼저 적용하세요. 공개 노출 인스턴스의
+~93.4% 가 인증 우회에 노출 (CVE-2026-25253 + 인증 우회 이슈).
+
+EOF
+log "install-openclaw.sh 끝."

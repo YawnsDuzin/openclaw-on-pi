@@ -1,14 +1,23 @@
 # openclaw-on-pi — 프로젝트 / 문서 작성 계획 (Design Spec)
 
 작성일: 2026-05-16
-상태: Approved → **1차 라운드 실행 완료 (2026-05-16, HW 검증 대기)**
-근거: 루트 `README.md` (원안: 커밋 `910e10a` 기준)
+상태: 1차 라운드 폐기 → **2차 라운드 (재작성) 진행 중 (2026-05-16~17)**
+근거: 루트 `README.md` (원안: 커밋 `910e10a`) + 공식 [openclaw/openclaw GitHub](https://github.com/openclaw/openclaw) + [docs.openclaw.ai](https://docs.openclaw.ai/) (2차 라운드 시 확인)
 
-> 📌 본 문서는 *작성 계획* 으로 출발했고 Phase 1–6 이 동일 일자에 실행되었다. 실행 과정에서 원안 대비 다음 변경이 있었으며 본 문서에 반영되었다:
-> - **Phase 3**: `docs/00-quickstart.md` 한 페이지 가이드 추가 (총 7 → 8 문서)
-> - **Phase 5**: examples 를 *스텁만* 두려던 원안에서 **best-effort 코드 작성(⚠)** 로 정책 변경 — Pi 검증 전 활성화 시 dry-run / 그림자 가동 요구
+> 🚨 **중대 정정 (2026-05-17)**: 1차 라운드는 OpenClaw 의 정체를 **잘못 가정** 한 상태로 작성되었음.
 >
-> 모든 산출물 마커는 ⚠ (HW 미검증) · 다음 라운드는 Pi 실 환경 검증.
+> - 1차 가정: Python/pip 기반 자율 작업 큐 프레임워크, `openclaw run/enqueue` CLI, `tasks.yaml` 스키마, Claude Code 에 코드 작성 위임
+> - 사실: TypeScript/Node.js, 메시징 채널 게이트웨이, `openclaw onboard/gateway/agent/message` CLI, SKILL.md 기반, BYOK 다중 모델 라우팅 (Claude Code 와는 무관한 별 인증 경로). 최초 공개 2025-11-24 (Peter Steinberger). 2026-03 GitHub 1위 (스타 ~370K). Steinberger 2026-02-14 OpenAI 합류.
+>
+> PyPI 의 `openclaw` 패키지는 cmdop.com 의 별 SDK 플러그인이며 본 프로젝트와 무관. 1차 라운드 사용자가 Pi 에서 `bash scripts/install-openclaw.sh` (pip 모드) → CLI 미존재 → 추적으로 잘못된 청사진을 발견.
+>
+> 본 문서의 Phase 1–6 산출물은 2차 라운드에서 대부분 재작성됨. [[project-openclaw-facts]] / [[project-openclaw-security]] 메모리 참고.
+
+> 📌 1차 라운드 (2026-05-16) 실행 결과 — 참고용으로 보존:
+> - **Phase 3**: `docs/00-quickstart.md` 한 페이지 가이드 추가 (총 7 → 8 문서)
+> - **Phase 5**: examples 를 *스텁만* 두려던 원안에서 **best-effort 코드 작성(⚠)** 로 정책 변경
+>
+> 모든 1차 산출물 마커는 ⚠ 였고, 2차 라운드에서 다음과 같이 재구성:
 
 ---
 
@@ -227,18 +236,52 @@
 - [x] Phase 5 — 예제 3개 (hello-agent / github-pr-bot / log-triage) — *원안 스텁 → best-effort 코드 작성* (⚠)
 - [x] Phase 6 — README 동기화 + 상태 마커 + 로드맵 갱신
 
-전 Phase 1차 라운드 완료(2026-05-16). 다음: Pi 5 (8GB) 실 환경에서 부트스트랩 → OAuth → hello-agent 끝-끝 검증, 이후 마커 ⚠ → ✅ 일괄 승격.
+전 Phase 1차 라운드 완료(2026-05-16). **단, 다음 Pi 실행에서 OpenClaw 의 정체 가정 오류 발견 → 2차 라운드로 재작성.**
+
+---
+
+## 7-bis. 2차 라운드 (재작성, 2026-05-16~17)
+
+**근거**: 1차 라운드의 가정 ↔ 공식 [openclaw/openclaw](https://github.com/openclaw/openclaw) 차이가 너무 커서 사용자가 따라할 수 있는 가이드가 못 됨. PyPI `openclaw` 도 무관한 별 프로젝트로 판명.
+
+**산출물**:
+
+- [x] **scripts/install-openclaw.sh** — pip/pipx 모드 폐기 → `npm install -g openclaw@latest`. Node 22+ 검증, 최소 안전 버전 2026.2.6 (CVE-2026-25253 패치) 비교
+- [x] **scripts/bootstrap-pi.sh** — `NODE_MAJOR` 20 → 22 (OpenClaw 최소 22.16 요구)
+- [x] **configs/openclaw.example.json5** (신규, .yaml 폐기) — 실제 OpenClaw 설정 포맷 (JSON5). loopback 바인딩 + token 인증 + Telegram pairing 권장
+- [x] **docs/03-openclaw-install.md** — `openclaw onboard` 흐름, 두 인증 경로 (Claude Code OAuth vs ~/.openclaw API key) 명시
+- [x] **docs/04-integration.md** — "Claude Code 위임" 가정 제거, BYOK 라우팅 + SKILL.md 매칭으로
+- [x] **docs/00-quickstart.md Phase 3** — onboard → gateway → pair → hello-agent 흐름
+- [x] **docs/07-openclaw-hardening.md** (신규) — CVE 인벤토리, gateway 베이스라인, reverse-proxy 절차, ClawHub 스킬 리뷰 체크리스트, 사고 대응
+- [x] **README.md** — 아키텍처 그림 (메시징 게이트웨이), 보안 섹션 (CVE / Cisco), 알려진 제약, 로드맵 1차→2차 라운드 기록
+- [x] **examples/{hello-agent, github-pr-bot, log-triage}** — SKILL.md frontmatter + 본문 + bundled scripts 패턴으로 재작성. `tasks.yaml` / Claude Code `CLAUDE.md` / `settings.json` 폐기
+- [x] **recipes/5개** — `openclaw enqueue/run` 가상 명령 폐기, OpenClaw `cron.jobs` + systemd timer + `openclaw agent --skill X` 실제 인터페이스
+- [x] **본 spec** — 1차 폐기 / 2차 산출물 기록
+- [ ] **MEMORY**: [[project-openclaw-facts]] / [[project-openclaw-security]] 갱신 (완료)
+
+**남은 작업**:
+
+- 정합성 점검 (troubleshooting.md 의 1차 가정 잔존, 05-headless-ops.md 의 /opt/openclaw systemd 가정 등) — Task #16
+- Pi 5 실 환경에서 onboard → gateway → hello-agent 끝-끝 검증
+- examples 3종 1주 그림자 가동 → ✅ 승격
 
 ---
 
 ## 8. 후속 (이번 세션 밖)
 
-- **Pi 5 (8GB) 실 환경 끝-끝 검증** (다음 라운드 1순위) — bootstrap → OAuth → hello-agent 통과 시 docs/scripts/configs/recipes 마커 ⚠ → ✅
-- github-pr-bot 1주일 production-shadow → 활성화
-- log-triage 마스킹 룰셋 실 로그로 보강 + 프롬프트 튜닝
+- **Pi 5 (8GB) 실 환경 끝-끝 검증** (다음 라운드 1순위) — bootstrap → install-openclaw → onboard → gateway → hello-agent 통과 시 docs/scripts/configs/recipes 마커 ⚠ → ✅
+- github-pr-bot `PR_BOT_DRY_RUN=1` 1주일 production-shadow → 활성화
+- log-triage `LOG_TRIAGE_PUBLISH=stdout` 1주일 그림자 → 마스킹 룰셋 보강 + 채널 활성화
+- ClawHub 스킬 외부 도입 시 [docs/07 §4](../../07-openclaw-hardening.md#4-스킬-clawhub-안전-정책) 리뷰 체크리스트 사례화
+- Cisco *DefenseClaw* 등 외부 보안 도구 연계 가이드
 - 영문 README / 문서 페어 (README 로드맵 항목)
-- OAuth 토큰 자동 갱신 RFC
-- 멀티 에이전트 큐 매니저 설계
-- Pi 5 NPU HAT 활용 검토
+- BYOK 토큰 자동 갱신 / 회전 절차 RFC
+- Pi 5 NPU HAT 활용 검토 (로컬 모델 실험)
+
+## 9. 교훈 (1차 → 2차 라운드)
+
+- **확인 가능한 가정만 코드로 옮길 것**: OpenClaw 처럼 변화가 빠르고 정체가 모호한 외부 프로젝트를 wrap 할 때는 공식 docs / GitHub 를 *처음* 에 확인해야 한다. 1차 라운드는 "README 청사진" 만으로 모든 산출물을 짰고, 결과적으로 사용자가 따라할 수 없는 가이드를 만들었다.
+- **검증 가능한 마커**: ⚠ 마커가 의도대로 동작 — 사용자가 Pi 에서 실행 시 즉시 차이를 발견. 만약 1차 산출물을 ✅ 로 잘못 표기했다면 더 큰 시간 낭비 발생.
+- **메모리에 사실관계 박기**: 본 라운드 종료 후 [[project-openclaw-facts]] / [[project-openclaw-security]] 를 메모리에 보존 — 다음 세션이 같은 함정을 다시 빠지지 않게.
 
 이상.

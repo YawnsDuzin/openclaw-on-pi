@@ -1,0 +1,103 @@
+// OpenClaw configuration — example (JSON5)
+//
+// 본 파일은 *예제* 다. 실 사용 시:
+//   1) `openclaw onboard --install-daemon` 가 ~/.openclaw/openclaw.json 을 대화형으로 생성한다.
+//   2) 본 예제는 그 결과물의 핵심 키를 보여주는 참조용이며, 직접 사용할 경우
+//      ~/.openclaw/openclaw.json 에 복사 후 토큰 / 페어링 정보를 채워라.
+//
+// 출처: https://docs.openclaw.ai/gateway/configuration (2026-05 확인)
+//
+// ⚠️ 모든 토큰 / API 키는 ~/.openclaw/ 하위에 *평문* 저장된다 (clawdocs.org/security
+//    Known Vulnerabilities 참고). 본 파일 자체에는 더미값만, 실제 비밀은 env 로.
+
+{
+  // ---------- Agents ------------------------------------------------------
+  agents: {
+    defaults: {
+      workspace: "~/.openclaw/workspace",
+      // BYOK 다중 모델 라우팅. Anthropic Claude / OpenAI / Google / xAI / Z.AI 등.
+      // OpenAI 가 공식 README 상 primary OAuth subscription 이지만,
+      // Anthropic 구독자가 본 가이드의 주 사용자이므로 anthropic 을 primary 로 둠.
+      model: {
+        primary: "anthropic/claude-sonnet-4-6",
+        fallbacks: [
+          "anthropic/claude-opus-4-7",
+          "openai/gpt-5-codex",
+        ],
+      },
+      // 스킬 화이트리스트 (비우면 ~/.openclaw/skills 의 모든 스킬 허용).
+      skills: [],
+    },
+    // 역할별 추가 에이전트가 필요하면 list 에 정의.
+    // list: [
+    //   { name: "triage", model: { primary: "anthropic/claude-haiku-4-5-20251001" } },
+    // ],
+  },
+
+  // ---------- Gateway -----------------------------------------------------
+  // 본 저장소의 기본 권장: loopback 바인딩 + token 인증. 외부 노출 시
+  // docs/07-openclaw-hardening.md 의 reverse-proxy 절차를 반드시 따를 것.
+  gateway: {
+    host: "127.0.0.1",
+    port: 18789,
+    bind: "loopback",        // auto | lan | tailnet | loopback | custom
+    auth: {
+      mode: "token",
+      // token: env 로 주입 — 본 파일에는 더미값만.
+      token: "REPLACE_VIA_ENV:OPENCLAW_GATEWAY_TOKEN",
+      rateLimit: { maxAttempts: 10, windowMs: 60000, exemptLoopback: true },
+    },
+    // reverse proxy 뒤에 둘 때만 채움 — 비워두면 안전.
+    trustedProxies: [],
+  },
+
+  // ---------- Channels ----------------------------------------------------
+  // 본 가이드는 *Telegram bot* 을 기본 권장. WhatsApp/Signal/iMessage 는 추가
+  // 설정 + 별도 페어링 단계 필요 — docs/03-openclaw-install.md §5 참고.
+  channels: {
+    telegram: {
+      enabled: false,                                    // onboard 후 true 로
+      botToken: "REPLACE_VIA_ENV:TELEGRAM_BOT_TOKEN",
+      dmPolicy: "pairing",                               // pairing | open | closed
+      allowFrom: ["tg:000000000"],                       // 본인 Telegram user id
+    },
+    // discord: { enabled: false, botToken: "...", dmPolicy: "pairing", allowFrom: [] },
+    // slack:   { enabled: false, botToken: "...", dmPolicy: "pairing", allowFrom: [] },
+  },
+
+  // ---------- Sessions / Messages ----------------------------------------
+  session: { defaultScope: "channel" },                  // 채널별 세션 유지
+  messages: { replyVisibility: "thread" },               // thread | dm | all
+
+  // ---------- Tools / Skills ----------------------------------------------
+  tools: {
+    // 셸 실행 / 파일 R/W / 코드 실행 등 핵심 도구는 화이트리스트로 제한 권장.
+    // 기본은 OpenClaw 가 알아서 잡지만, deny 우선 정책을 명시할 수 있다.
+  },
+
+  // ---------- Cron (스케줄 작업) -----------------------------------------
+  // 정기 작업이 필요한 경우 별도 cron 스킬로 트리거. 본 예제는 비활성.
+  cron: { enabled: false },
+
+  // ---------- Hooks (외부 webhook 수신) ----------------------------------
+  hooks: {
+    enabled: false,
+    // token: gateway.auth.token 과 *다른* 별도 토큰이어야 한다.
+    token: "REPLACE_VIA_ENV:OPENCLAW_HOOKS_TOKEN",
+  },
+
+  // ---------- Browser (SSRF 보호) ----------------------------------------
+  browser: {
+    ssrfPolicy: {
+      dangerouslyAllowPrivateNetwork: false,
+      hostnameAllowlist: [],                             // 필요한 도메인만
+    },
+  },
+
+  // ---------- Env / Logging ----------------------------------------------
+  env: {
+    // 실제 비밀은 OS env 또는 systemd EnvironmentFile 로 주입.
+    // 본 파일에는 키 이름만, 값 자체는 절대 금지.
+  },
+  logging: { level: "info" },                            // debug | info | warn | error
+}
