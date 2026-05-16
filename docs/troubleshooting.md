@@ -1,6 +1,8 @@
 # Troubleshooting — 자주 깨지는 지점들
 
 > 증상 → 진단 → 해결 순으로 정리. 새 케이스는 PR 환영.
+>
+> Quickstart 진행 중 막혔다면 [`00-quickstart.md` 의 "막혔을 때" 표](./00-quickstart.md#막혔을-때) 가 증상 카테고리 → 본 문서 절(A–G) 매핑을 보여줍니다.
 
 각 항목은 다음 형식:
 

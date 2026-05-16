@@ -32,20 +32,30 @@
 
 > 📌 OpenClaw 의 설치·구성 자체는 [`docs/03-openclaw-install.md`](docs/03-openclaw-install.md) 에서 다룹니다. (작성 예정)
 
-## TL;DR
+## 처음 사용자라면
+
+> 👉 **[`docs/00-quickstart.md`](docs/00-quickstart.md)** 한 페이지를 위에서 아래로 따라가세요. 빈 Pi → 24/7 가동까지 약 1시간, 단계마다 검증 명령과 실패 시 점프 위치가 명시되어 있습니다.
+
+## TL;DR (요약 — 자세한 절차는 quickstart 참고)
 
 ```bash
-# 1) 부트스트랩 (apt 패키지, Node, Python 등)
+# 1) 부트스트랩
 git clone https://github.com/YawnsDuzin/openclaw-on-pi.git
 cd openclaw-on-pi
 bash scripts/bootstrap-pi.sh
 
-# 2) Claude Code OAuth 1회 인증 (헤드리스 트릭)
-bash scripts/oauth-tunnel.sh   # SSH 포트포워딩 터널 오픈
-claude login                   # 브라우저에서 콜백 완료 후 ~/.claude 에 토큰 저장
+# 2) Claude Code 설치 + OAuth 인증
+bash scripts/install-claude-code.sh
+bash scripts/oauth-tunnel.sh   # 안내문 + SSH -L 가이드
+claude login
 
-# 3) 헬스체크
-bash scripts/healthcheck.sh
+# 3) OpenClaw 설치 + 첫 동작 검증
+bash scripts/install-openclaw.sh
+cp -r examples/hello-agent ~/openclaw-work/ && cd ~/openclaw-work/hello-agent
+bash run.sh
+
+# 4) 헬스체크
+bash ~/openclaw-on-pi/scripts/healthcheck.sh
 ```
 
 > 헤드리스 환경에서 OAuth 브라우저 콜백을 받는 방법은 [`docs/02-claude-code-oauth.md`](docs/02-claude-code-oauth.md) 참고.
@@ -164,6 +174,7 @@ OpenClaw 가 작업 큐를 돌리며, 실제 코드 작성·수정 단계에서 
 
 | # | 문서 | 상태 | 내용 |
 |---|---|:-:|---|
+| 00 | [**Quickstart**](docs/00-quickstart.md) | ⚠ | **처음 사용자 — 위에서 아래로** (Phase 1→4, 약 1시간) |
 | 01 | [Prerequisites](docs/01-prerequisites.md) | ⚠ | HW · OS · 패키지 |
 | 02 | [Claude Code OAuth](docs/02-claude-code-oauth.md) | ⚠ | 헤드리스 OAuth 인증 트릭 |
 | 03 | [OpenClaw Install](docs/03-openclaw-install.md) | ⚠ | 설치 · 설정 · 첫 실행 |

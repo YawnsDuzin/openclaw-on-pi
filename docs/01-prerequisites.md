@@ -1,6 +1,8 @@
 # 01 — Prerequisites
 
 > 라즈베리파이에서 OpenClaw + Claude Code 를 24/7 돌리기 위한 하드웨어 · OS · 패키지 · 네트워크 사전 조건.
+>
+> 처음 사용자는 [`00-quickstart.md`](./00-quickstart.md) 를 먼저 펼쳐놓고 본 문서는 Phase 1 의 참조로 사용하세요.
 
 ⚠ 검증 환경: Pi 5 (8GB) + Raspberry Pi OS 64-bit Bookworm. Pi 4 / Ubuntu Server 24.04 ARM64 는 호환 가능하지만 본 문서 작성 시점에 모든 단계가 동일 하드웨어에서 검증되지는 않았다.
 
