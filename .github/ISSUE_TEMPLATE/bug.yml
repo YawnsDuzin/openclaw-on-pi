@@ -44,8 +44,8 @@ body:
   - type: input
     id: claude-version
     attributes:
-      label: Claude Code CLI 버전 (선택)
-      description: "`claude --version` 결과. vibe-coding 용. OpenClaw 와는 별 도구."
+      label: Claude CLI 버전 (위임 모드 사용 시 필수)
+      description: "`claude --version` 결과. OpenClaw 의 `agentRuntime.id: \"claude-cli\"` 모드일 때 위임 백엔드. BYOK 모드면 무관."
     validations:
       required: false
 

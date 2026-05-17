@@ -42,23 +42,26 @@ else
     warn "openclaw 바이너리 없음 (아직 설치 전이면 무시)"
 fi
 
-# ---------- 2. Claude Code OAuth 자격증명 (선택, vibe-coding 용) ------------
-CRED="$HOME/.claude/credentials.json"
+# ---------- 2. Claude CLI 자격증명 (OpenClaw 위임 모드 시 필수) -------------
+# OpenClaw 의 agentRuntime.id="claude-cli" 모드일 때 ~/.claude/.credentials.json 을
+# 백엔드 인증으로 위임 사용. BYOK 모드면 본 절은 무관.
+CRED="$HOME/.claude/.credentials.json"
+[[ -f "$CRED" ]] || CRED="$HOME/.claude/credentials.json"   # 2.1.x 와 구버전 모두 지원
 if [[ -f "$CRED" ]]; then
     perm="$(stat -c '%a' "$CRED" 2>/dev/null || stat -f '%Lp' "$CRED")"
     if [[ "$perm" != "600" ]]; then
-        warn "Claude Code credentials.json 권한이 ${perm} (권장: 600)"
+        warn "Claude CLI credentials 권한이 ${perm} (권장: 600)"
     else
-        pass "Claude Code credentials.json 권한 600 OK"
+        pass "Claude CLI credentials 권한 600 OK"
     fi
     age_days=$(( ( $(date +%s) - $(stat -c '%Y' "$CRED" 2>/dev/null || stat -f '%m' "$CRED") ) / 86400 ))
     if (( age_days > TOKEN_MAX_AGE )); then
-        warn "Claude Code OAuth 토큰 ${age_days}일 경과 (재인증 권장)"
+        warn "Claude CLI 토큰 ${age_days}일 경과 (재인증 권장 — 위임 모드 사용 시)"
     else
-        pass "Claude Code OAuth 토큰 나이 ${age_days}일 (한도 ${TOKEN_MAX_AGE}일)"
+        pass "Claude CLI 토큰 나이 ${age_days}일 (한도 ${TOKEN_MAX_AGE}일)"
     fi
 else
-    warn "Claude Code OAuth 자격증명 없음 ($CRED). vibe-coding 안 쓰면 무시."
+    warn "Claude CLI 자격증명 없음 ($CRED). OpenClaw BYOK 모드면 무시, 위임 모드면 'claude /login' 또는 'claude setup-token' 필요."
 fi
 
 # ~/.claude 디렉토리 권한
