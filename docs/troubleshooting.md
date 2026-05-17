@@ -53,6 +53,111 @@ sudo systemctl restart systemd-timesyncd
 - 권한 복구: `chmod 700 ~/.claude && chmod 600 ~/.claude/credentials.json`
 - 그래도 실패면 재인증: `mv ~/.claude/credentials.json{,.bak.$(date +%s)} && claude login`
 
+### A5. `out of extra usage` — OpenClaw 가 Anthropic 응답 거부 (Claude Max 인데도)
+
+**증상**: TUI 또는 채널 봇에서 메시지가 다음 메시지로 실패
+
+```
+LLM error invalid_request_error: You're out of extra usage.
+Add more at claude.ai/settings/usage and keep going.
+```
+
+claude.ai/settings/usage 들어가 보면 플랜 한도(주간/세션)는 한 자릿수%만 사용한 상태.
+
+**원인**: OpenClaw 는 `claude -p` (Claude Code CLI 의 programmatic / headless 모드) 로 호출한다. 이 경로는 사람 대화형 사용과 **다른 청구 풀** — "추가 사용량"(extra usage) 풀 — 을 통해 빌링된다. Anthropic 이 자동화 트래픽에 명시적 동의 게이트를 두기 위한 구조.
+
+claude.ai/settings/usage 의 **추가 사용량 토글이 OFF** 면 잔액이 있어도 사용 불가 → 위 에러.
+
+**확인**:
+
+1. claude.ai/settings/usage 페이지 우측 "추가 사용량" 스위치 색상 — 회색=OFF, 컬러=ON
+2. Pi 측에서 `openclaw doctor` 의 "Model auth" 절이 `valid` 로 나오는지 (이건 OAuth 자체는 살아 있다는 뜻 → A6 와 구분)
+
+**해결** (셋 중 택일):
+
+- **권장**: claude.ai/settings/usage 의 **추가 사용량 토글 ON** + 월 지출 한도 안전선 설정. (Pi 무인 운영 시 자동 충전 잔액 권장 $5–20)
+- API key 방식 전환 — 구독과 완전 분리, 종량 과금. `openclaw configure` → "Anthropic API key" 선택
+- 다음 5h 윈도우 리셋 대기 (임시방편 — 같은 빈도로 또 부딪힘)
+
+> 💡 이 함정은 첫 운영자 100% 가 부딪힌다. "OpenClaw 는 Claude OAuth 구독을 못 쓴다" 는 잘못된 루머의 1차 출처 — 실제로는 **토글 한 번이면 풀린다**.
+
+### A6. `No credentials found for profile "anthropic:claude-cli"` (실제로는 만료)
+
+**증상**: TUI 또는 채널 봇이 다음 에러로 실패
+
+```
+⚠️ Agent failed before reply: No credentials found for profile "anthropic:claude-cli".
+```
+
+`~/.claude/.credentials.json` 은 존재하고 권한도 정상. OpenClaw 의 메시지가 오해를 유발 — 실제로는 OAuth **access token 이 만료**된 상태.
+
+**확인**:
+
+```bash
+openclaw doctor 2>&1 | grep -A3 'Model auth'
+```
+
+다음 중 하나:
+
+- `valid` → 다른 원인 (A5 의 빌링, 모델 ID 오타 등)
+- `expiring (Nh)` → 아직 유효, N 시간 후 만료 예정
+- `expired (0m)` → **이 케이스. 재인증 필요**
+
+**원인**: Claude CLI OAuth 의 access token TTL ≈ 8 시간. OpenClaw 공식 docs 는 "expired 시 자동 refresh" 라고 명시하나, **실제로는 refresh 가 실패하고 위 에러를 반환**하는 케이스가 자주 관찰됨 (docs/구현 불일치).
+
+**해결**:
+
+```bash
+# Pi 에서 (인터랙티브)
+claude                   # Claude TUI 열기
+# TUI 안에서:
+/login                   # OAuth 플로우, 브라우저 URL 출력
+# 인증 완료 후:
+/exit                    # 또는 Ctrl+C 두 번
+```
+
+```bash
+# 검증
+openclaw doctor 2>&1 | grep -A3 'Model auth'   # expiring (8h) 로 바뀜
+```
+
+**무인 운영이라면 (강력 권장)** — A8 의 `claude setup-token` 으로 장기 토큰 사용:
+
+```bash
+claude setup-token       # 일회성, 만료 사실상 없음. 8h refresh 사이클 우회.
+```
+
+### A7. `openclaw models auth login` 을 해도 OAuth 가 일어나지 않음
+
+**증상**: `openclaw models auth login --provider anthropic` → "Claude CLI" 선택 → 출력에 "Auth profile 갱신" 메시지만 뜨고 **OAuth URL 도 코드 입력도 없음**. 끝났다고 생각하지만 [A6](#a6-no-credentials-found-for-profile-anthropicclaude-cli-실제로는-만료) 에러는 그대로.
+
+**원인**: 이 명령은 **OpenClaw 의 auth 프로필 설정만 갱신**한다. 실제 OAuth 토큰은 Claude Code CLI 가 별도 관리 (`~/.claude/.credentials.json`) — OpenClaw 가 그걸 위임해서 읽을 뿐. 따라서 진짜 재인증은 Claude CLI 쪽 명령이 필요.
+
+**확인**: 위 명령 출력에 다음 같은 OAuth URL이 **없으면** 실제 토큰 갱신이 안 된 것:
+
+```
+Open this URL in your browser:
+  https://console.anthropic.com/oauth/authorize?...
+```
+
+**해결**: [A6](#a6-no-credentials-found-for-profile-anthropicclaude-cli-실제로는-만료) 의 `claude` → `/login` 절차를 별도로 진행.
+
+### A8. 무인 운영 — 8 시간마다 재인증을 피하려면
+
+**상황**: Pi 가 24/7 운영. 8 시간마다 사람이 `claude /login` 하는 건 비현실적.
+
+**해결**: Claude Code CLI 의 장기 토큰 모드:
+
+```bash
+claude setup-token       # 일회성 인터랙티브, Claude 구독 필요
+```
+
+> "Set up a long-lived authentication token (requires Claude subscription)" — `claude --help` 발췌
+
+이 토큰은 access/refresh 토큰 사이클을 우회하므로 8h TTL 문제 없음. `~/.claude/` 하위에 저장되며 OpenClaw 는 그대로 위임 사용. 분실/회수 시까지 유효.
+
+**대안**: API key (`ANTHROPIC_API_KEY`) — 구독과 완전 분리, 종량 과금. `openclaw configure` 재실행하여 인증 모드 변경.
+
 ---
 
 ## B. systemd / 운영
@@ -83,6 +188,64 @@ sudo chown -R openclaw:openclaw /opt/openclaw /var/lib/openclaw /var/log/opencla
 **확인**: `journalctl -u openclaw-watchdog.service --since "30 min ago"` 의 마지막 FAIL 메시지
 
 **해결**: healthcheck.sh 가 무엇을 FAIL 했는지 메시지가 정확히 알려준다 (token / disk / mem / network / unit). 해당 항목 진단으로 이동.
+
+### B4. 초기 설치 직후 `Gateway: not detected (timeout)` (false negative)
+
+**증상**: `openclaw onboard` 마법사 끝부분 또는 `openclaw status` 에서:
+
+```
+Health check failed: connect ECONNREFUSED 127.0.0.1:18789
+Gateway: not detected (timeout)
+```
+
+수 초 뒤 재확인하면 정상.
+
+**원인**: systemd 가 서비스를 `Started` 로 표시하는 시점과 Node 프로세스가 18789 포트 LISTEN 을 잡는 시점 사이에 race. 마법사가 retry 없이 한 번만 호출해서 false negative.
+
+**확인**: 30초 정도 기다린 후
+
+```bash
+systemctl --user is-active openclaw-gateway     # active
+ss -tlnp 2>/dev/null | grep 18789               # LISTEN 라인 나옴
+```
+
+**해결**: 거의 항상 그냥 무시 + 재확인. 1분이 지나도 살아나지 않으면 [B1](#b1-유닛이-곧장-재시작-루프) 절차로 진행.
+
+### B5. 비대화형 SSH / cron / systemd 단위 에서 `openclaw: command not found`
+
+**증상**: 대화형 shell 에선 `openclaw` 가 잘 찾히는데, ssh 단발 명령 / cron / 사용자 hook 에서는 못 찾음.
+
+**원인**: `~/.npm-global/bin` 이 비대화형 shell 의 PATH 에 없음. `~/.bashrc` 의 PATH 추가는 보통 `[ -z "$PS1" ] && return` 보다 뒤에 와서 비대화형에선 적용 안 됨.
+
+**확인**:
+
+```bash
+ssh dzp@pi 'which openclaw; echo $PATH'    # which 가 비어 있으면 PATH 미적용
+```
+
+**해결** (택일):
+
+1. **절대경로 사용** (systemd 단위 / 짧은 명령에 권장):
+
+   ```ini
+   ExecStart=/home/dzp/.npm-global/bin/openclaw gateway --port 18789
+   ```
+
+2. **PATH 영구 등록** — `~/.profile` 에 추가 (대화/비대화 모두 적용, [C6](#c6-install-claude-codesh-직후-claude-명령어를-찾을-수-없음) 동일 패턴):
+
+   ```bash
+   grep -qxF 'export PATH="$HOME/.npm-global/bin:$PATH"' ~/.profile \
+     || echo 'export PATH="$HOME/.npm-global/bin:$PATH"' >> ~/.profile
+   ```
+
+3. **systemd user `environment.d`** — 사용자 세션 전역에 PATH:
+
+   ```bash
+   mkdir -p ~/.config/environment.d
+   cat > ~/.config/environment.d/npm-global.conf <<'EOF'
+   PATH=$HOME/.npm-global/bin:$PATH
+   EOF
+   ```
 
 ---
 
@@ -391,6 +554,87 @@ git rm --cached <path>/credentials.json
 git commit -m "chore: drop accidentally tracked credentials"
 # 추가로 Anthropic 콘솔에서 토큰 즉시 회수 + 재인증
 ```
+
+---
+
+## H. 채널 (Telegram / 페어링 / TUI)
+
+### H1. 페어링 큐가 gateway 재시작 시 휘발
+
+**증상**: 사용자가 봇에 DM 보냄 → 봇이 페어링 코드 응답 (예: `JS62TGEC`) → 운영자가 `openclaw pairing approve telegram JS62TGEC` 실행 → `No pending pairing request found for code "..."` 에러.
+
+**원인**: 페어링 큐는 메모리(또는 휘발성 store) 보관. **gateway 재시작이 큐를 비움**. 사용자가 코드 받은 후 운영자 승인 직전에 `systemctl --user restart openclaw-gateway` 같은 게 끼면 큐가 청소됨.
+
+**확인**:
+
+```bash
+openclaw pairing list telegram     # "No pending..." 이면 큐 비었음
+```
+
+**해결**: 사용자에게 **다시 DM** 요청 (예: "hi" 한 번 더). 새 페어링 코드가 발급되면 그걸로 승인. 운영자가 setup 직후 gateway 만지고 있는 상황이면, **gateway 만지는 작업 모두 끝낸 후** 사용자에게 페어링 시도 요청.
+
+> 💡 이상적으로는 큐가 디스크에 영속화돼야 함 — 추후 OpenClaw 개선 후보.
+
+### H2. TUI 에 재로그인 전 stale 실패 메시지가 새 세션에 다시 표시
+
+**증상**: `claude /login` 으로 재인증 후 `openclaw tui` 재실행하면, 새 세션인데도 이전 만료 시점의 다음 메시지들이 화면 상단에 표시됨:
+
+```
+⚠️ Agent failed before reply: No credentials found for profile "anthropic:claude-cli".
+```
+
+새 메시지 보내면 정상 응답이 와서 그 위 stale 에러는 무시해도 됨.
+
+**원인**: TUI 가 세션 로그를 그대로 표시 — 이전 attempt 의 실패 기록이 세션에 남아 있음. 재인증 후 다시 호출하면 성공이지만, 과거 실패 기록은 사라지지 않음.
+
+**확인**: stale 에러 뒤에 새 입력에 대한 실제 응답(agent 메시지) 이 오면 정상.
+
+**해결**:
+
+- 신경 쓰이면 새 세션 생성: 슬래시 명령 `/new` 또는 세션 ID 다른 걸로 시작
+- 또는 무시 — 다음 응답이 정상이면 문제 없음
+
+### H3. Telegram 그룹 메시지가 silently drop
+
+**증상**: 봇이 추가된 그룹에서 명령을 보내도 응답 없음. DM 은 정상.
+
+**확인**:
+
+```bash
+openclaw config get channels.telegram.groupPolicy     # "allowlist" 같은 값
+openclaw config get channels.telegram.groupAllowFrom  # 빈 배열이면 모든 그룹 drop
+openclaw security audit | grep -A2 'allowFrom'        # CRITICAL 로 잡힘
+```
+
+**해결** (의도에 따라):
+
+```bash
+# 그룹 안 쓸 거면 — 가장 안전
+openclaw config set channels.telegram.groupPolicy "off"
+
+# 특정 사용자에게 그룹 명령 허용
+openclaw config set channels.telegram.groupAllowFrom '["telegram:<user_id>"]' --strict-json
+
+# 적용
+systemctl --user restart openclaw-gateway
+```
+
+### H4. 페어링 후에도 owner-only 명령 거부
+
+**증상**: 페어링은 통과해서 채팅은 되는데, `/diagnostics` `/config` 같은 권한 명령은 거부.
+
+**원인**: DM 페어링 승인 ≠ command owner. doctor 가 명시:
+
+> "DM pairing only lets someone talk to the bot; it does not make that sender the owner for privileged commands."
+
+**해결**: `commands.ownerAllowFrom` 에 본인 ID 명시 (페어링 시 봇 응답에 본인 텔레그램 ID 가 포함됨):
+
+```bash
+openclaw config set commands.ownerAllowFrom '["telegram:8095251995"]' --strict-json
+systemctl --user restart openclaw-gateway
+```
+
+> ⚠ 위 JSON 배열 값은 `--strict-json` 플래그 없이는 string 으로 해석되어 validation 실패함.
 
 ---
 
