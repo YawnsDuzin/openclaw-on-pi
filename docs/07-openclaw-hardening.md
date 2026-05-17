@@ -18,6 +18,8 @@
 | **Prompt Injection (구조적)** | — | 모든 버전 | 디자인 결함 — 운영 완화만 가능 | 메시지/이메일/웹 본문에 숨긴 지시문이 LLM 을 조작 → 데이터 유출 / 명령 실행 / 자기 설정 변경. |
 
 > **최소 버전 핀**: 본 가이드의 모든 절차는 **OpenClaw ≥ 2026.2.6** 가정. `scripts/install-openclaw.sh` 가 이 미만이면 경고를 띄운다. `openclaw --version` 으로 늘 확인.
+>
+> **셋업 직후**: §2–§7 의 정책 베이스라인을 알았다면, 실제 적용 절차는 [§8 초기 셋업 후 운영 하드닝](#8-초기-셋업-후-운영-하드닝--doctor--security-audit-루틴) 의 `openclaw doctor` / `openclaw security audit` 루틴으로 진행.
 
 ---
 
@@ -194,7 +196,92 @@ openclaw onboard --install-daemon
 
 ---
 
-## 8. 외부 자료
+## 8. 초기 셋업 후 운영 하드닝 — doctor / security audit 루틴
+
+`openclaw onboard` 가 끝나도 곧장 안전한 상태가 아니다. OpenClaw 가 자체 제공하는 두 진단 도구가 가장 효과적인 1차 하드닝.
+
+### 8-1. doctor + doctor --fix
+
+```bash
+openclaw doctor              # 진단만
+openclaw doctor --fix        # 안전한 자동 마이그레이션 (백업 자동 생성)
+```
+
+doctor 가 흔히 잡는 항목:
+
+- Legacy config key 마이그레이션 (예: `agents.defaults.agentRuntime` → provider-scoped 위치)
+- 사용 불가 스킬 (바이너리 / OS / env 누락) 자동 비활성화 — 43+ 개 한 번에 정리되는 경우 흔함
+- Startup optimization env vars 권고 ([06 §8](./06-performance-tuning.md#8-openclaw-cold-start-튜닝))
+- Model auth 상태 — `valid` / `expiring (Nh)` / `expired (0m)`
+- Telegram DM 정책 / 페어링 상태
+- 상태 디렉토리가 SD 카드에 있으면 마모 경고
+- Command owner 미설정 경고
+
+### 8-2. security audit + --fix
+
+```bash
+openclaw security audit              # 일반 — config 정적 점검
+openclaw security audit --deep       # gateway 라이브 프로브 포함
+openclaw security audit --fix        # 안전한 자동 fix (chmod 등)
+```
+
+`--fix` 는 **권한 강화만** 자동 적용 (예: `chmod 700 ~/.openclaw/agents/main/sessions`). 정책성 결정 (allowlist, 모델 tier 등) 은 출력으로만 보고하고 사용자에게 맡김.
+
+일반적으로 출력되는 critical/warn:
+
+| 항목 | 일반 대응 |
+|---|---|
+| Telegram 그룹 allowlist 비어 있음 (CRITICAL) | 그룹 안 쓰면 `groupPolicy="off"`, 쓰면 명시적 allowlist |
+| Control UI insecure_auth (WARN) | loopback 바인드면 사실상 무시 가능, 외부 노출 시 반드시 OFF |
+| 모델 tier (Haiku 등 작은 모델, WARN) | 의도된 비용 트레이드오프면 무시. Pi 채널 봇은 Haiku 가 일반적으로 적절 |
+| multi-user 휴리스틱 (WARN) | 그룹 정책 잠그면 자동 해소 |
+| trusted_proxies 미설정 (WARN) | 리버스 프록시 안 쓰면 무관 |
+
+### 8-3. Command Owner 지정
+
+DM 페어링과 owner 권한은 **별개**. owner 가 없으면 `/diagnostics` `/config` 같은 권한 명령을 누구도 못 씀 (doctor 가 명시).
+
+페어링 시 봇 응답에 본인 채널 ID 가 포함됨 (예: `Your Telegram user id: 8095251995`). 그 ID 로:
+
+```bash
+openclaw config set commands.ownerAllowFrom '["telegram:8095251995"]' --strict-json
+systemctl --user restart openclaw-gateway
+```
+
+> ⚠ JSON 배열 값은 `--strict-json` 플래그 필수. 없으면 string 으로 해석되어 validation 실패. PowerShell/cmd 에서 호출 시 quoting 함정 — [troubleshooting H4](./troubleshooting.md#h4-페어링-후에도-owner-only-명령-거부).
+
+### 8-4. 권장 루틴 (체크리스트)
+
+신규 Pi 셋업 직후 또는 환경 변경 (모델 변경, 채널 추가) 후:
+
+```bash
+# 1) 자동 정리
+openclaw doctor --fix
+openclaw security audit --fix
+
+# 2) 잔존 항목 확인
+openclaw doctor
+openclaw security audit
+
+# 3) 정책 결정 → 수동 config 변경
+#    (groupPolicy, ownerAllowFrom, dmPolicy 등)
+
+# 4) 마지막 한 번 재시작 후 사용자 첫 페어링 요청
+systemctl --user restart openclaw-gateway
+#    ↑ 이 시점 이후로는 gateway 만지지 말 것.
+#      페어링 큐는 휘발성 — 재시작이 비움.
+#      ([troubleshooting H1](./troubleshooting.md#h1-페어링-큐가-gateway-재시작-시-휘발))
+```
+
+### 8-5. 정기 점검
+
+- **주 1회**: `openclaw doctor` — 만료 임박 토큰, 디스크 / SD 마모 추세
+- **분기 1회**: `openclaw security audit --deep` — 새 CVE 반영 여부, 정책 drift
+- 큰 변경 (모델 / 채널 / 스킬 install) 후엔 위 8-4 루틴 한 번 더
+
+---
+
+## 9. 외부 자료
 
 - 공식: [openclaw/openclaw GitHub](https://github.com/openclaw/openclaw) · [docs.openclaw.ai](https://docs.openclaw.ai/)
 - 보안: [clawdocs.org/security/known-vulnerabilities](https://clawdocs.org/security/known-vulnerabilities/)

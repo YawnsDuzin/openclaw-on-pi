@@ -14,6 +14,7 @@
 2. **저장소** — microSD IOPS 가 npm 설치 / OpenClaw 세션 DB (`~/.openclaw/`) 쓰기에 직격
 3. **메모리 / 스왑** — 다중 에이전트 / 큰 컨텍스트 시 OOM
 4. **CPU 거버너** — Node 빌드, 큰 컨텍스트 처리 시 throttle 회피
+5. **OpenClaw cold start** — Pi 같은 저전력 호스트에서 CLI 응답성 (`openclaw doctor` 한 번 ≈ 수 초). [§8](#8-openclaw-cold-start-튜닝) 의 env vars 로 완화
 
 ---
 
@@ -156,17 +157,30 @@ sudo apt-get install -y build-essential python3-dev libffi-dev libssl-dev cmake 
 
 ## 6. 모델 선택
 
-OpenClaw 는 BYOK 다중 모델 라우팅. 비용 / 응답속도 / 품질 trade-off:
+OpenClaw 는 BYOK 다중 모델 라우팅 + Claude CLI 위임 (`agentRuntime.id: "claude-cli"`) 도 지원. 비용 / 응답속도 / 품질 trade-off:
 
 | 모델 ID (provider/model) | 용도 | 특징 |
 |---|---|---|
 | `anthropic/claude-opus-4-7` | 복잡한 리팩토링, 설계 | 고품질, 느림, 토큰 비쌈 |
 | `anthropic/claude-sonnet-4-6` | 일상 코드 작업 | 균형. 본 가이드 권장 primary |
-| `anthropic/claude-haiku-4-5-20251001` | 짧은 분류 / 트리아지 | 빠름, 저비용 |
+| `anthropic/claude-haiku-4-5` | 짧은 분류 / 트리아지 / Pi 채널 봇 | 빠름, 저비용. Pi 무인 운영에서 Opus 대비 비용 ≈ 1/30 |
 | `openai/gpt-5-codex` | 코드 자동완성 / 보조 | OpenAI 구독 시 fallback 후보 |
 | `google/gemini-3.1-pro` | 긴 컨텍스트 | 1M 토큰 컨텍스트 |
 
-`~/.openclaw/openclaw.json` 의 `agents.defaults.model.primary` 로 핀. 에이전트별 / 스킬별 오버라이드는 `agents.list[].model` 또는 SKILL.md frontmatter 에. Claude Code CLI (별개 도구) 도 `~/.claude/settings.json` 의 `"model"` 로 별도 핀.
+설정 — `~/.openclaw/openclaw.json`:
+
+```bash
+# 현재 값 확인
+openclaw config get agents.defaults.model.primary
+
+# 변경
+openclaw config set agents.defaults.model.primary "anthropic/claude-haiku-4-5"
+systemctl --user restart openclaw-gateway     # 로드된 모델 갱신
+```
+
+에이전트별 / 스킬별 오버라이드는 `agents.list[].model` 또는 SKILL.md frontmatter 에. Claude Code CLI (별개 도구) 도 `~/.claude/settings.json` 의 `"model"` 로 별도 핀.
+
+> ⚠ Claude OAuth 구독 (Pro/Max) 으로 라우팅하는 경우, **`claude -p` 경로는 "추가 사용량" 풀에서 빌링**된다 (구독 한도 풀이 아님). claude.ai/settings/usage 의 추가 사용량 토글이 OFF 면 잔액 있어도 거부 — [troubleshooting A5](./troubleshooting.md#a5-out-of-extra-usage--openclaw-가-anthropic-응답-거부-claude-max-인데도) 참조.
 
 ---
 
@@ -178,7 +192,57 @@ OpenClaw 는 BYOK 다중 모델 라우팅. 비용 / 응답속도 / 품질 trade-
 
 ---
 
-## 8. 검증 — 부하 테스트
+## 8. OpenClaw cold start 튜닝
+
+Pi/저전력 호스트에서 `openclaw status` `openclaw doctor` 한 번이 수 초씩 걸리고, gateway 자체도 부팅 직후 첫 응답이 느린 문제. `openclaw doctor` 가 직접 권고하는 두 env var 로 완화:
+
+```
+NODE_COMPILE_CACHE=/var/tmp/openclaw-compile-cache
+OPENCLAW_NO_RESPAWN=1
+```
+
+### 8-1. gateway 서비스에 적용 (필수)
+
+systemd drop-in 으로 gateway 단위에만 주입 — 시스템 전역 오염 없이 가장 안전:
+
+```bash
+mkdir -p /var/tmp/openclaw-compile-cache
+mkdir -p ~/.config/systemd/user/openclaw-gateway.service.d
+cat > ~/.config/systemd/user/openclaw-gateway.service.d/env.conf <<'EOF'
+[Service]
+Environment=NODE_COMPILE_CACHE=/var/tmp/openclaw-compile-cache
+Environment=OPENCLAW_NO_RESPAWN=1
+EOF
+
+systemctl --user daemon-reload
+systemctl --user restart openclaw-gateway
+
+# 확인 — gateway 의 실제 Environment 에 두 줄이 포함되는지
+systemctl --user show openclaw-gateway -p Environment --no-pager
+```
+
+### 8-2. 인터랙티브 셸에도 적용 (사람이 `openclaw doctor` / `openclaw config` 자주 칠 경우)
+
+```bash
+grep -q 'OPENCLAW_NO_RESPAWN' ~/.bashrc || cat >> ~/.bashrc <<'EOF'
+
+# OpenClaw startup optimization
+export NODE_COMPILE_CACHE=/var/tmp/openclaw-compile-cache
+export OPENCLAW_NO_RESPAWN=1
+EOF
+source ~/.bashrc
+```
+
+### 8-3. 효과
+
+- `NODE_COMPILE_CACHE`: Node v22+ 의 [모듈 컴파일 캐시](https://nodejs.org/api/module.html#module-compile-cache) 활성화. 두 번째 호출부터 Node 모듈 컴파일 단계 스킵 → CLI 시작 수 백 ms 절약.
+- `OPENCLAW_NO_RESPAWN=1`: OpenClaw 가 자기 자신을 재실행하는 patch 단계 우회 (CLI 한 단계 짧아짐).
+
+> 💡 `openclaw doctor` 의 "Startup optimization" 경고가 사라지면 적용 완료. 단, doctor 가 자기 shell 환경을 보기 때문에 8-2 까지 적용해야 경고가 빠짐 (8-1 만 적용 시엔 gateway 서비스만 빨라지고 doctor 출력엔 여전히 경고).
+
+---
+
+## 9. 검증 — 부하 테스트
 
 ```bash
 # 4시간 부하: 헬스체크 + idle 워커
