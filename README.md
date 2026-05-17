@@ -39,7 +39,9 @@
 
 > 👉 **[`docs/00-quickstart.md`](docs/00-quickstart.md)** 한 페이지를 위에서 아래로 따라가세요. 빈 Pi → 24/7 가동까지 약 1시간, 단계마다 검증 명령과 실패 시 점프 위치가 명시되어 있습니다.
 
-## TL;DR (요약 — 자세한 절차는 quickstart 참고)
+## TL;DR (요약 — 자세한 절차는 [quickstart](docs/00-quickstart.md) 참고)
+
+> ⚠️ **사전 준비**: [console.anthropic.com](https://console.anthropic.com/) 에서 API key 1개 발급 (`sk-ant-...`). 본 흐름의 3-2 에서 onboard 가 묻습니다.
 
 ```bash
 # 0) 작업 베이스 디렉토리 (모든 단계 공통 — 사용자 dzp 기준)
@@ -51,23 +53,28 @@ git clone https://github.com/YawnsDuzin/openclaw-on-pi.git
 cd /home/dzp/dzp_main/program/openclaw-on-pi
 bash scripts/bootstrap-pi.sh
 
-# 2) (선택) Claude Code CLI — vibe-coding 용. OpenClaw 의 모델 호출과는 별도.
+# 2) (선택, 스킵 가능) Claude Code CLI — 사람이 직접 vibe-coding 할 때만.
+#    OpenClaw 자체와는 무관한 별도 도구.
 bash scripts/install-claude-code.sh
 export PATH="$HOME/.npm-global/bin:$PATH"
 # OAuth 1회: bash scripts/oauth-tunnel.sh → 로컬 PC 에서 SSH -L → claude login
 
-# 3) OpenClaw 설치 + 대화형 온보딩 (BYOK 토큰 / 채널 / Gateway)
+# 3) OpenClaw 설치 + 대화형 온보딩 (BYOK API key / Gateway / systemd user 유닛)
+export PATH="$HOME/.npm-global/bin:$PATH"     # Phase 2 스킵했으면 필수
 bash scripts/install-openclaw.sh
-openclaw onboard --install-daemon
+openclaw onboard --install-daemon              # 마법사가 API key 등을 물어봄
 
-# 4) Gateway 띄우고 hello 스킬로 끝-끝 검증
-openclaw gateway --port 18789 --verbose &        # 백그라운드 또는 별도 tmux 창
+# 4) Gateway 활성화 + 끝-끝 검증 (hello 스킬)
+systemctl --user start openclaw
+sudo loginctl enable-linger "$USER"           # 로그아웃해도 살아있게 (1회만)
+
 cp -r examples/hello-agent /home/dzp/dzp_main/program/openclaw-work/ \
   && cd /home/dzp/dzp_main/program/openclaw-work/hello-agent
-bash run.sh                                       # SKILL.md 설치 + agent --message "hello"
+bash run.sh                                    # 스킬 설치 + agent --message "hello" → "ok"
 
-# 5) 헬스체크
+# 5) 헬스체크 + 보안 베이스라인 확인
 bash /home/dzp/dzp_main/program/openclaw-on-pi/scripts/healthcheck.sh
+jq '.gateway.host, .gateway.bind' ~/.openclaw/openclaw.json   # "127.0.0.1" / "loopback"
 ```
 
 > 📁 **경로 규약**: 본 가이드는 `/home/dzp/dzp_main/program/` 을 가이드 저장소 + 사용자 워크스페이스 베이스로 사용합니다. OpenClaw 자체의 상태/스킬/자격증명은 별도로 `~/.openclaw/` 하위에 둡니다 (OpenClaw 기본 동작 — 두 경로의 역할이 다릅니다).

@@ -90,37 +90,73 @@ ls -la ~/.openclaw/
 
 ---
 
-## 5. 메시징 채널 연결 — Telegram 예시
+## 5. 메시징 채널 연결 — Telegram 예시 (선택)
 
-가장 짧은 끝-끝 검증 경로는 **Telegram bot 으로 본인 계정에서만 페어링** 하는 것이다.
+가장 짧은 끝-끝 검증 경로는 **Telegram bot 으로 본인 계정에서만 페어링** 하는 것입니다. WhatsApp / iMessage / Signal 등은 각자 다른 페어링 절차 + 추가 의존성이 필요하므로 첫 가동은 Telegram 만 권장.
 
-1. **BotFather** 로 새 봇 생성 → `bot token` 받기
-2. 본 호스트의 OpenClaw 에 등록:
+### 5-1. BotFather 로 봇 만들기 (5분, 1회)
+
+Telegram 자체에 봇 관리용 공식 봇 [@BotFather](https://t.me/BotFather) 가 있습니다.
+
+1. Telegram 앱에서 **BotFather** 검색 (정확히 `@BotFather`, 파란 체크 표시 확인) → 대화 시작
+2. `/newbot` 입력
+3. BotFather 의 질문 두 개에 답:
+   - **이름 (display name)** — 자유: 예 `My Pi OpenClaw`
+   - **username** — 반드시 `_bot` 으로 끝나야 함: 예 `mypi_openclaw_bot` (전 세계 유일해야 함, 거부되면 다른 이름)
+4. 마지막에 BotFather 가 **HTTP API 토큰** 을 줍니다 — `123456789:ABC-DEF1234ghIklzyx57W2v1u123ew11` 형태. **이 토큰이 곧 봇 자체의 비밀번호** 이므로 깃에 커밋하지 말고 환경변수로만 다룸.
+
+### 5-2. OpenClaw 에 봇 토큰 등록
+
+`~/.openclaw-secrets/telegram.env` 에 안전 보관 (권한 600):
+
+```bash
+mkdir -p ~/.openclaw-secrets && chmod 700 ~/.openclaw-secrets
+cat > ~/.openclaw-secrets/telegram.env <<'EOF'
+TELEGRAM_BOT_TOKEN=123456789:ABC-DEF1234ghIklzyx57W2v1u123ew11
+EOF
+chmod 600 ~/.openclaw-secrets/telegram.env
+
+source ~/.openclaw-secrets/telegram.env
+openclaw config set channels.telegram.enabled true
+openclaw config set channels.telegram.botToken "$TELEGRAM_BOT_TOKEN"
+openclaw config set channels.telegram.dmPolicy "pairing"   # 페어링 안 된 사용자 차단
+
+systemctl --user restart openclaw     # 새 채널 설정 반영
+```
+
+### 5-3. 페어링 (본인 user id 화이트리스트)
+
+1. Telegram 앱에서 본인이 만든 봇 (`@mypi_openclaw_bot`) 을 검색해서 **시작 (Start)** 또는 `/start` 전송
+2. OpenClaw 가 봇 응답으로 페어링 코드를 표시 (예: `Pair code: 7HQK2`)
+3. Pi 에서:
 
    ```bash
-   export TELEGRAM_BOT_TOKEN="123456:abcdef..."
-   openclaw config set channels.telegram.enabled true
-   openclaw config set channels.telegram.botToken "$TELEGRAM_BOT_TOKEN"
-   openclaw config set channels.telegram.dmPolicy "pairing"
+   openclaw pair --channel telegram --code 7HQK2
    ```
 
-3. Telegram 에서 봇에게 `/start` → 표시된 페어링 코드를 OpenClaw 에 입력:
+4. 페어링 끝 → 본인 Telegram user id 가 자동으로 `channels.telegram.allowFrom` 에 등록. 다른 사람이 같은 봇에 말 걸어도 차단.
 
-   ```bash
-   openclaw pair --channel telegram --code <코드>
-   ```
+### 5-4. 검증
 
-4. 페어링이 끝나면 본인 user id 가 `allowFrom` 에 들어간다 — 다른 사용자는 차단.
+Telegram 앱에서 본인 봇에 메시지:
 
-> ⚠ WhatsApp / iMessage / Signal 등은 각자 다른 페어링 절차 + 추가 의존성이 필요. 첫 가동은 Telegram 만 권장.
+```
+hello
+```
+
+응답: `ok` (3-4 의 hello 스킬이 매칭되었다면). 안 오면 [troubleshooting E절](./troubleshooting.md#e-에이전트-호출--도구-사용).
+
+### 5-5. 봇 토큰 분실/누출 대응
+
+BotFather 에서 `/revoke` → 새 토큰 발급 → `telegram.env` 갱신. 본 가이드 [`docs/07 §7`](./07-openclaw-hardening.md#7-사고-시-체크리스트) 의 사고 체크리스트.
 
 ---
 
 ## 6. 첫 동작 — `openclaw agent`
 
-본 저장소 [`examples/hello-agent`](../examples/hello-agent/) 의 SKILL.md 를 통해 끝-끝 검증한다 (자세한 절차는 해당 README).
+본 저장소 [`examples/hello-agent`](../examples/hello-agent/) 의 `bash run.sh` 가 자동 검증해주므로 그쪽이 가장 빠른 길입니다. 본 절은 원리 이해용.
 
-원리만 보면:
+**전제**: 3 의 `openclaw onboard --install-daemon` 으로 user systemd 유닛이 깔리고 `systemctl --user start openclaw` 로 가동 중. 그렇지 않으면 별도 tmux 창에서 `openclaw gateway --port 18789 --verbose` 를 띄워둬야 합니다 (foreground 와 systemd 유닛은 동시에 같은 포트를 쓸 수 없으므로 **택일**).
 
 ```bash
 # 1) 임의의 스킬 정의 (~/.openclaw/skills/hello/SKILL.md)
@@ -133,17 +169,20 @@ description: 단순 인사 응답. 'hello' 메시지에 'ok' 한 단어로 답�
 사용자 메시지가 정확히 `hello` 이면 `ok` 라고만 답하라. 그 외는 무시.
 MD
 
-# 2) Gateway 띄우기 (foreground, verbose)
-openclaw gateway --port 18789 --verbose
+# 2) Gateway 가 살아있는지 확인
+systemctl --user is-active openclaw    # active (onboard --install-daemon 후)
+# 또는 foreground 모드면:
+#   openclaw gateway --port 18789 --verbose
+# (이 경우 systemctl 의 openclaw 는 미리 stop)
 
-# 3) 다른 터미널에서 에이전트 호출
+# 3) 에이전트 호출
 openclaw agent --message "hello" --thinking high
 ```
 
 기대:
 
-- 응답 본문이 `ok`
-- gateway 로그에 스킬 `hello` 가 매칭되었다는 줄이 보임
+- 응답 본문이 정확히 `ok`
+- 로그에 스킬 `hello` 가 매칭되었다는 줄: `journalctl --user -u openclaw -n 30 --no-pager | grep -i 'skill.*hello'`
 
 ---
 
