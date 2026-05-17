@@ -429,6 +429,7 @@ openclaw doctor 2>&1 | grep -A3 'Model auth' | grep -q 'valid\|expiring' \
 
 | 목적 | 가는 곳 |
 |---|---|
+| 설정 키별 자세한 의미 / 권장값 / 변경 방법 | [`docs/08-configuration.md`](./08-configuration.md) |
 | 성능 / 발열 / 메모리 압박 잡기 | [`docs/06-performance-tuning.md`](./06-performance-tuning.md) |
 | 자율 코딩 루프 24/7 활성화 | [`recipes/auto-coding-loop.md`](../recipes/auto-coding-loop.md) |
 | 외부에서 Pi 조작 (모바일) | [`recipes/remote-agent-control.md`](../recipes/remote-agent-control.md) |

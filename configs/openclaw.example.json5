@@ -4,100 +4,271 @@
 //   1) `openclaw onboard --install-daemon` 가 ~/.openclaw/openclaw.json 을 대화형으로 생성한다.
 //   2) 본 예제는 그 결과물의 핵심 키를 보여주는 참조용이며, 직접 사용할 경우
 //      ~/.openclaw/openclaw.json 에 복사 후 토큰 / 페어링 정보를 채워라.
+//   3) 키별 자세한 설명은 ../docs/08-configuration.md 참고.
 //
 // 출처: https://docs.openclaw.ai/gateway/configuration (2026-05 확인)
 //
 // ⚠️ 모든 토큰 / API 키는 ~/.openclaw/ 하위에 *평문* 저장된다 (clawdocs.org/security
 //    Known Vulnerabilities 참고). 본 파일 자체에는 더미값만, 실제 비밀은 env 로.
+//
+// 본 가이드의 인증 모드는 두 갈래 (자세한 비교 → docs/04-integration §1):
+//   (A) BYOK API key  — agentRuntime.id = "anthropic-api" (또는 "openai-api" 등)
+//   (B) Claude CLI 위임 — agentRuntime.id = "claude-cli" (Claude Pro/Max 구독 사용)
+// 아래 예제는 (A) BYOK 모드를 기본으로 잡았다. (B) 위임 모드는 §agents/§auth 주석의 대안 참고.
 
 {
-  // ---------- Agents ------------------------------------------------------
+  // ============================================================================
+  // 1. agents — 에이전트 정의 / 인증 모드 / 모델 라우팅
+  // ============================================================================
   agents: {
     defaults: {
+      // -- 인증 백엔드 ---------------------------------------------------------
+      // (A) BYOK: "anthropic-api" | "openai-api" | "google-api" | "xai-api" | ...
+      // (B) 위임: "claude-cli"
+      agentRuntime: { id: "anthropic-api" },
+
+      // -- 워크스페이스 (에이전트가 파일 R/W 하는 기본 디렉토리) ----------------
       workspace: "~/.openclaw/workspace",
-      // BYOK 다중 모델 라우팅. Anthropic Claude / OpenAI / Google / xAI / Z.AI 등.
-      // OpenAI 가 공식 README 상 primary OAuth subscription 이지만,
-      // Anthropic 구독자가 본 가이드의 주 사용자이므로 anthropic 을 primary 로 둠.
+
+      // -- 모델 라우팅 ---------------------------------------------------------
+      // primary 가 rate-limit / 5xx 시 fallbacks 로 자동 라우팅.
+      // 본 가이드 권장 primary: Pi 무인 운영에 비용/속도 균형이 좋은 Sonnet.
+      // Pi 4 4GB 처럼 비용 절감 우선이면 "anthropic/claude-haiku-4-5" 가 ≈ 1/30 비용.
       model: {
         primary: "anthropic/claude-sonnet-4-6",
         fallbacks: [
-          "anthropic/claude-opus-4-7",
-          "openai/gpt-5-codex",
+          "anthropic/claude-opus-4-7",     // 복잡 리팩토링 시 자동 승격
+          "openai/gpt-5-codex",            // Anthropic 한도 초과 / 장애 시
         ],
       },
-      // 스킬 화이트리스트 (비우면 ~/.openclaw/skills 의 모든 스킬 허용).
-      skills: [],
+
+      // -- 스킬 화이트리스트 ---------------------------------------------------
+      // 빈 배열이면 ~/.openclaw/skills/* 전체 허용.
+      // 첫 1주는 명시 화이트리스트 권장 (ClawHub 악성 스킬 자동 매칭 차단).
+      skills: [
+        // "hello",
+        // "log-triage",
+        // "cleanup-issue",
+      ],
+
+      // -- 호출 타임아웃 / 동시성 -----------------------------------------------
+      timeoutSeconds: 600,        // Pi 환경 권장 (1회 호출 최대 10분)
+      concurrency: 1,             // Pi 4 4GB → 1, Pi 5 8GB → 2
+
+      // -- Claude extended thinking 레벨 ---------------------------------------
+      // "auto" (모델 결정) | "high" (긴 사고) | "off"
+      thinking: "auto",
     },
-    // 역할별 추가 에이전트가 필요하면 list 에 정의.
+
+    // -- 다중 에이전트 (역할별 분리, 선택) ----------------------------------------
+    // 활성화하려면 주석 해제. recipes/multi-agent-orchestration.md 참고.
     // list: [
-    //   { name: "triage", model: { primary: "anthropic/claude-haiku-4-5-20251001" } },
+    //   {
+    //     name: "triage",
+    //     model: { primary: "anthropic/claude-haiku-4-5" },
+    //     skills: ["log-triage", "issue-categorize"],
+    //   },
+    //   {
+    //     name: "coder",
+    //     model: { primary: "anthropic/claude-sonnet-4-6" },
+    //     skills: ["cleanup-issue", "review-pr"],
+    //   },
     // ],
   },
 
-  // ---------- Gateway -----------------------------------------------------
-  // 본 저장소의 기본 권장: loopback 바인딩 + token 인증. 외부 노출 시
-  // docs/07-openclaw-hardening.md 의 reverse-proxy 절차를 반드시 따를 것.
+  // ============================================================================
+  // 2. auth — 인증 프로필 (자격증명은 ENV 로만, 본 파일에 평문 금지)
+  // ============================================================================
+  auth: {
+    profiles: {
+      // (A) BYOK 모드 — env ANTHROPIC_API_KEY 가 자동 인입
+      "anthropic:api-key": {
+        provider: "anthropic-api",
+        mode: "api-key",
+      },
+
+      // (B) 위임 모드 — 활성화하려면 위 agents.defaults.agentRuntime.id 를
+      //                 "claude-cli" 로 변경 + ~/.claude/.credentials.json 존재 필요
+      //                 (claude /login 또는 claude setup-token).
+      // "anthropic:claude-cli": {
+      //   provider: "claude-cli",
+      //   mode: "oauth",
+      // },
+    },
+  },
+
+  // ============================================================================
+  // 3. gateway — 게이트웨이 서버 (loopback 강제 권장)
+  // ============================================================================
+  // 본 가이드 기본: 외부 노출 금지 + token 인증. 외부 노출 시 docs/07 §3
+  // reverse-proxy 절차 (trustedProxies + mTLS + DefenseClaw 권장) 반드시 따를 것.
   gateway: {
     host: "127.0.0.1",
     port: 18789,
-    bind: "loopback",        // auto | lan | tailnet | loopback | custom
+    bind: "loopback",             // auto | lan | tailnet | loopback | custom
     auth: {
-      mode: "token",
-      // token: env 로 주입 — 본 파일에는 더미값만.
+      mode: "token",              // token | trusted-proxy
       token: "REPLACE_VIA_ENV:OPENCLAW_GATEWAY_TOKEN",
-      rateLimit: { maxAttempts: 10, windowMs: 60000, exemptLoopback: true },
+      allowTailscale: false,      // tailnet bind 사용 시만 true
+      rateLimit: {
+        maxAttempts: 10,
+        windowMs: 60000,          // 60s 윈도우
+        exemptLoopback: true,     // 127.0.0.1 호출은 한도 면제
+      },
     },
     // reverse proxy 뒤에 둘 때만 채움 — 비워두면 안전.
+    // proxy 의 *고정* 사설 IP. 잘못 채우면 CVE-2026-25253 reverse-proxy 우회 (93.4%).
     trustedProxies: [],
   },
 
-  // ---------- Channels ----------------------------------------------------
-  // 본 가이드는 *Telegram bot* 을 기본 권장. WhatsApp/Signal/iMessage 는 추가
-  // 설정 + 별도 페어링 단계 필요 — docs/03-openclaw-install.md §5 참고.
+  // ============================================================================
+  // 4. channels — 메시징 채널 (Telegram 권장 기본값)
+  // ============================================================================
+  // dmPolicy: pairing | open | closed
+  //   - pairing (권장): /start 페어링 코드를 받은 사용자만 allowFrom 자동 등록
+  //   - open: 누구나 메시지 가능 — 절대 금지 (prompt injection 위험)
+  //   - closed: DM 비활성
   channels: {
     telegram: {
       enabled: false,                                    // onboard 후 true 로
       botToken: "REPLACE_VIA_ENV:TELEGRAM_BOT_TOKEN",
-      dmPolicy: "pairing",                               // pairing | open | closed
-      allowFrom: ["tg:000000000"],                       // 본인 Telegram user id
+      dmPolicy: "pairing",
+      allowFrom: ["telegram:000000000"],                 // 본인 user id (페어링 후 자동 등록)
+      rateLimit: { perUser: 30 },                        // 분당 30 메시지 한도
+
+      // -- 라우팅 (다중 에이전트 사용 시) -----------------------------------------
+      // routing: [
+      //   { match: "^/triage", agent: "triage" },
+      //   { match: "^/code",   agent: "coder" },
+      //   { default: true,     agent: "triage" },
+      // ],
     },
+
+    // 추가 채널 (활성화 전 docs/03 §5 의 페어링 절차 + docs/07 §6 prompt
+    // injection 운영 완화 검토)
     // discord: { enabled: false, botToken: "...", dmPolicy: "pairing", allowFrom: [] },
     // slack:   { enabled: false, botToken: "...", dmPolicy: "pairing", allowFrom: [] },
   },
 
-  // ---------- Sessions / Messages ----------------------------------------
-  session: { defaultScope: "channel" },                  // 채널별 세션 유지
-  messages: { replyVisibility: "thread" },               // thread | dm | all
-
-  // ---------- Tools / Skills ----------------------------------------------
-  tools: {
-    // 셸 실행 / 파일 R/W / 코드 실행 등 핵심 도구는 화이트리스트로 제한 권장.
-    // 기본은 OpenClaw 가 알아서 잡지만, deny 우선 정책을 명시할 수 있다.
+  // ============================================================================
+  // 5. session / messages — 세션 · 응답 정책
+  // ============================================================================
+  session: {
+    defaultScope: "channel",      // channel | user | thread (가족 공용이면 "user")
+    historyLimit: 50,             // 보존 메시지 수
+    idleTimeout: 3600,            // 비활성 세션 자동 종료 (초)
+  },
+  messages: {
+    replyVisibility: "thread",    // thread | dm | all
+    mentionPolicy: "mention",     // mention (멘션 시만) | always (모든 메시지)
   },
 
-  // ---------- Cron (스케줄 작업) -----------------------------------------
-  // 정기 작업이 필요한 경우 별도 cron 스킬로 트리거. 본 예제는 비활성.
-  cron: { enabled: false },
+  // ============================================================================
+  // 6. tools — 자율 도구 정책 (deny 우선)
+  // ============================================================================
+  // 정확한 키 구조는 OpenClaw 버전마다 다를 수 있음 — `openclaw config get tools`
+  // 로 현재 활성 키 확인 후 적용. 본 가이드의 핵심 원칙: deny 우선 + allow 화이트리스트.
+  tools: {
+    skills: {
+      virusTotalScan: true,       // ClawHub 스킬 자동 VT 스캔 (v2026.2.6+)
+      codeSafetyScanner: true,    // 정적 분석
+      autoInstall: false,         // ⚠ 외부 스킬 자동 설치 금지 (절대)
+    },
+    // shell: {
+    //   policy: {
+    //     deny: ["rm -rf:*", "sudo:*", "curl:*", "wget:*"],
+    //     allow: [],
+    //   },
+    // },
+    // file: {
+    //   readOnlyPaths: ["/etc", "/var/log"],
+    //   denyPaths: ["~/.ssh", "~/.openclaw"],
+    // },
+  },
 
-  // ---------- Hooks (외부 webhook 수신) ----------------------------------
+  // ============================================================================
+  // 7. cron — 정기 작업 (선택)
+  // ============================================================================
+  // 활성화 예: 매시 5분 로그 트리아지 + 6시간마다 PR 자동 정리.
+  cron: {
+    enabled: false,
+    // jobs: [
+    //   { schedule: "5 * * * *",  skill: "log-triage" },
+    //   { schedule: "0 */6 * * *", skill: "cleanup-issue",
+    //     agent: "coder",
+    //     env: { PR_BOT_REPO: "youruser/yourrepo" } },
+    // ],
+  },
+
+  // ============================================================================
+  // 8. hooks — 외부 webhook 수신 (기본 OFF, 활성화 시 가장 위험한 면)
+  // ============================================================================
   hooks: {
     enabled: false,
-    // token: gateway.auth.token 과 *다른* 별도 토큰이어야 한다.
+    // gateway.auth.token 과 *다른* 별도 토큰이어야 한다.
     token: "REPLACE_VIA_ENV:OPENCLAW_HOOKS_TOKEN",
+    allowRequestSessionKey: false,
+    allowedSessionKeyPrefixes: ["hook:"],
+    // endpoints: [
+    //   { path: "/github/issue", skill: "github-issue-triage" },
+    // ],
   },
 
-  // ---------- Browser (SSRF 보호) ----------------------------------------
+  // ============================================================================
+  // 9. browser — 자동 브라우저 SSRF 보호
+  // ============================================================================
   browser: {
     ssrfPolicy: {
-      dangerouslyAllowPrivateNetwork: false,
-      hostnameAllowlist: [],                             // 필요한 도메인만
+      dangerouslyAllowPrivateNetwork: false,  // ⚠ 절대 true 금지 (사내망 noscan)
+      hostnameAllowlist: [                    // 필요한 도메인만 명시
+        // "*.github.com",
+        // "api.anthropic.com",
+      ],
+      blockMetadataEndpoints: true,           // AWS/GCP 메타데이터 차단
     },
+    userAgent: "OpenClaw/2026.x (+pi)",
+    timeoutSeconds: 30,
   },
 
-  // ---------- Env / Logging ----------------------------------------------
-  env: {
-    // 실제 비밀은 OS env 또는 systemd EnvironmentFile 로 주입.
-    // 본 파일에는 키 이름만, 값 자체는 절대 금지.
+  // ============================================================================
+  // 10. commands — owner 권한 슬래시 명령 화이트리스트
+  // ============================================================================
+  commands: {
+    // /diagnostics, /config get/set, /skill install 등 위험 명령은 owner 만
+    ownerAllowFrom: ["telegram:000000000"],   // 본인 user id
   },
-  logging: { level: "info" },                            // debug | info | warn | error
+
+  // ============================================================================
+  // 11. env — 환경변수 인입 (값은 본 파일 금지)
+  // ============================================================================
+  env: {
+    // OpenClaw 가 부팅 시 자동으로 인입할 env 키 목록.
+    // 실제 값은 systemd EnvironmentFile=~/.openclaw-secrets/env 또는 OS env.
+    inject: [
+      "ANTHROPIC_API_KEY",         // (A) BYOK 모드
+      "OPENCLAW_GATEWAY_TOKEN",
+      "OPENCLAW_HOOKS_TOKEN",      // hooks.enabled=true 일 때만
+      "TELEGRAM_BOT_TOKEN",
+      // "GITHUB_TOKEN",           // examples/github-pr-bot 사용 시
+      // "NTFY_TOPIC",             // examples/log-triage 사용 시
+    ],
+  },
+
+  // ============================================================================
+  // 12. logging — 로그 레벨 / 출력 / secret redaction
+  // ============================================================================
+  logging: {
+    level: "info",                // 첫 1주는 "debug" 권장, 안정화 후 "info"
+    output: "journal",            // journal | file:/var/log/openclaw.log | stdout
+    redactSecrets: true,          // ⚠ 절대 false 금지 (토큰 / API key 패턴 마스킹)
+    sessions: { keepDays: 14 },
+  },
+
+  // ============================================================================
+  // 13. ui — TUI 외형 (가동에 영향 X)
+  // ============================================================================
+  ui: {
+    theme: "dark",                // dark | light | auto
+    showTimestamps: true,
+  },
 }
