@@ -20,9 +20,7 @@ credentials/
 configs/openclaw.json
 configs/openclaw.json5
 configs/claude-code-settings.json
-configs/CLAUDE.md
 !configs/*.example.*
-!configs/CLAUDE.example.md
 
 # --- OS --------------------------------------------------------------------
 .DS_Store

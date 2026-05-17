@@ -83,7 +83,7 @@ jq '.gateway.host, .gateway.bind' ~/.openclaw/openclaw.json   # "127.0.0.1" / "l
 >
 > 🚨 **운영 전 필독**: [`docs/07-openclaw-hardening.md`](docs/07-openclaw-hardening.md) — CVE 인벤토리, gateway 보안 베이스라인, ClawHub 스킬 리뷰 체크리스트.
 
-> 헤드리스 환경에서 OAuth 브라우저 콜백을 받는 방법은 [`docs/02-claude-code-oauth.md`](docs/02-claude-code-oauth.md) 참고.
+> OpenClaw 의 Claude CLI 위임 모드 (Pro/Max 구독 사용) 인증 절차는 [`docs/02-claude-code-oauth.md`](docs/02-claude-code-oauth.md). 2.1.x 는 코드 입력 모드라 SSH 트릭 불필요.
 
 ---
 
@@ -114,7 +114,7 @@ openclaw-on-pi/
 │   ├── 01-prerequisites.md           # Pi 하드웨어, OS, 네트워크, 패키지
 │   ├── 02-claude-code-oauth.md       # OpenClaw 의 Claude CLI 위임 OAuth (Pro/Max 구독 사용 시)
 │   ├── 03-openclaw-install.md        # OpenClaw 설치 (npm) · onboard · 첫 동작
-│   ├── 04-integration.md             # BYOK 라우팅, Claude Code 와의 관계
+│   ├── 04-integration.md             # 두 인증 모드 (BYOK / OAuth 위임) + 호출 경로 + 빌링 함정
 │   ├── 05-headless-ops.md            # tmux, systemd, 원격 운용, 로그 수집
 │   ├── 06-performance-tuning.md      # ARM64, 스왑, NVMe, 쿨링
 │   ├── 07-openclaw-hardening.md      # CVE / gateway 보안 / 스킬 리뷰 / 사고 대응
@@ -128,10 +128,10 @@ openclaw-on-pi/
 │   └── iot-bridge.md                 # 에이전트가 IoT 센서/GPIO 다루기
 │
 ├── scripts/
-│   ├── bootstrap-pi.sh               # 환경 구축 원샷
-│   ├── install-claude-code.sh
-│   ├── install-openclaw.sh
-│   ├── oauth-tunnel.sh               # SSH 포트포워딩으로 OAuth 콜백 받기
+│   ├── bootstrap-pi.sh               # 환경 구축 원샷 (Node 22+, apt 패키지)
+│   ├── install-claude-code.sh        # OpenClaw 위임 모드 백엔드 (Pro/Max 구독 시 필수)
+│   ├── install-openclaw.sh           # npm install -g openclaw + 버전 핀
+│   ├── oauth-tunnel.sh               # 구버전 Claude CLI 용 SSH 콜백 (2.1.x 는 불필요)
 │   └── healthcheck.sh
 │
 ├── configs/

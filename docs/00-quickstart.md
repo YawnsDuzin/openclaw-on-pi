@@ -32,7 +32,6 @@
    ┌──────────── Phase 2 (위임 모드 선택 시) ┘
    install-claude-code.sh
        → claude /login (또는 claude setup-token 무인 운영)
-       (OpenClaw 가 OAuth 위임 모드로 호출. BYOK 모드면 스킵)
                                               │
    ┌──────────── Phase 3 (필수, 메인) ───────┘
    install-openclaw.sh
@@ -182,11 +181,11 @@ claude setup-token        # 일회성 인터랙티브
 > export PATH="$HOME/.npm-global/bin:$PATH"
 > ```
 
-### 3-0. BYOK API key 준비 (필수)
+### 3-0. 모델 자격증명 준비 — 모드별 분기
 
-OpenClaw 는 BYOK — 본인의 API key 가 있어야 모델을 호출할 수 있습니다.
+3-2 의 `openclaw onboard` 가 두 모드 중 하나를 묻습니다 (자세한 비교는 [`04-integration §1`](./04-integration.md#1-두-인증-모드)). 본인 모드에 해당하는 항목만 준비:
 
-**Anthropic Claude (본 가이드 권장)**:
+**모드 (A) — BYOK API key (종량 과금, 가장 단순)**:
 
 1. [console.anthropic.com](https://console.anthropic.com/) 로그인
 2. 우상단 **Settings → API Keys → Create Key**
@@ -194,7 +193,13 @@ OpenClaw 는 BYOK — 본인의 API key 가 있어야 모델을 호출할 수 �
 4. **이 키는 한 번만 보입니다.** 안전한 곳에 즉시 복사 (`sk-ant-...` 형태)
 5. 결제 정보 미입력 시 free credit 만 사용 가능 → console 의 **Billing** 에서 카드 등록 + 사용량 한도 설정 (월 $20-50 권장으로 시작)
 
-**OpenAI / Google** 도 가능 — 각 console 에서 API key 발급. 본 가이드는 Anthropic 을 가정.
+OpenAI / Google 도 가능 — 각 console 에서 API key 발급. 본 가이드는 Anthropic 을 가정.
+
+**모드 (B) — Claude CLI OAuth 위임 (Pro/Max 구독자)**:
+
+별도 작업 없음. Phase 2 (특히 §2-3 `claude setup-token`) 가 끝났으면 자동으로 사용 가능. `~/.claude/.credentials.json` 이 곧 OpenClaw 가 위임 사용할 토큰.
+
+> 💡 어느 쪽이 더 좋은지 모르겠다면: 종량 과금이 더 편하면 (A), 이미 Pro/Max 구독이 있고 추가 청구 없이 시작하고 싶으면 (B). [04-integration §1](./04-integration.md#1-두-인증-모드) 의 비교표 참고.
 
 ### 3-1. OpenClaw 설치 (npm 글로벌)
 
@@ -217,7 +222,7 @@ PATH 에 안 잡히면 → [`troubleshooting.md` C6](./troubleshooting.md#c6).
 
 ### 3-2. 대화형 온보딩 — `openclaw onboard`
 
-OpenClaw 의 첫 실행은 **대화형 마법사**. 3-0 에서 받은 API key 와 다음 답들을 미리 준비:
+OpenClaw 의 첫 실행은 **대화형 마법사**. 3-0 의 자격증명을 미리 준비:
 
 ```bash
 openclaw onboard --install-daemon
@@ -225,15 +230,16 @@ openclaw onboard --install-daemon
 
 마법사가 묻는 항목 (질문 순서/문구는 버전마다 다를 수 있음):
 
-| 항목 | 본 가이드 권장 답 |
-|---|---|
-| 1순위 모델 | `anthropic/claude-sonnet-4-6` (또는 보유한 다른 provider) |
-| Anthropic API key | 3-0 에서 받은 `sk-ant-...` 그대로 |
-| Gateway 포트 | `18789` (기본) |
-| Gateway 바인딩 | **`loopback`** (외부 노출 금지 — 권장 강제) |
-| Gateway 인증 모드 | `token` |
-| systemd daemon 설치 | `yes` (24/7 가동, user 모드 자동) |
-| 메시징 채널 활성화 | **첫 가동은 `none`** (먼저 hello-agent 로 끝-끝 확인 후 [3-5](#3-5-메시징-채널-연결-telegram-bot-선택) 에서 추가) |
+| 항목 | 모드 (A) BYOK 권장 답 | 모드 (B) OAuth 위임 권장 답 |
+|---|---|---|
+| Agent runtime / 인증 모드 | `anthropic-api-key` (또는 `byok`) | `claude-cli` (Claude CLI OAuth 위임) |
+| 1순위 모델 | `anthropic/claude-sonnet-4-6` | `anthropic/claude-sonnet-4-6` (CLI 토큰이 부르는 모델) |
+| Anthropic API key | 3-0 (A) 에서 받은 `sk-ant-...` | (생략 — Phase 2 의 `~/.claude/.credentials.json` 사용) |
+| Gateway 포트 | `18789` (기본) | 동일 |
+| Gateway 바인딩 | **`loopback`** (외부 노출 금지) | 동일 |
+| Gateway 인증 모드 | `token` | 동일 |
+| systemd daemon 설치 | `yes` (24/7 가동, user 모드 자동) | 동일 |
+| 메시징 채널 활성화 | **첫 가동은 `none`** (먼저 hello-agent 검증 후 [3-5](#3-5-메시징-채널-연결-telegram-bot-선택)) | 동일 |
 
 종료 후 확인:
 
