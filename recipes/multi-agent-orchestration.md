@@ -39,7 +39,7 @@
     list: [
       {
         name: "triage",
-        model: { primary: "anthropic/claude-haiku-4-5-20251001" },
+        model: { primary: "anthropic/claude-haiku-4-5" },
         skills: ["log-triage", "issue-categorize"],
         // triage 는 읽기/요약만 — 쓰기/푸시 스킬 화이트리스트에서 제외
       },
@@ -53,7 +53,7 @@
       },
       {
         name: "reporter",
-        model: { primary: "anthropic/claude-haiku-4-5-20251001" },
+        model: { primary: "anthropic/claude-haiku-4-5" },
         skills: ["weekly-review", "log-triage"],
         // reporter 는 발행만 — gh pr create 같은 변경 스킬 제외
       },
