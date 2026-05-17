@@ -13,7 +13,7 @@
 
 새로 셋업한 Pi 에서:
 
-1. [`scripts/bootstrap-pi.sh`](../../scripts/bootstrap-pi.sh) → [`install-claude-code.sh`](../../scripts/install-claude-code.sh) (선택) → [`install-openclaw.sh`](../../scripts/install-openclaw.sh) → `openclaw onboard --install-daemon` 까지 진행
+1. [`scripts/bootstrap-pi.sh`](../../scripts/bootstrap-pi.sh) → [`install-claude-code.sh`](../../scripts/install-claude-code.sh) (Claude CLI 위임 모드 시) → [`install-openclaw.sh`](../../scripts/install-openclaw.sh) → `openclaw onboard --install-daemon` 까지 진행
 2. 본 예제로 **스킬 매칭 + 모델 호출** 이 실제 일어나는지 확인
 
 성공 시 사용자가 얻는 것:

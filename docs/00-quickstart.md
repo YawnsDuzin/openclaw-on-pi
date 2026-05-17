@@ -5,7 +5,7 @@
 
 ⚠ 검증 환경: Raspberry Pi 5 (8GB) + Raspberry Pi OS 64-bit Bookworm. Pi 4 (4GB) / Ubuntu Server 24.04 ARM64 호환은 가능하지만 일부 단계가 더 오래 걸릴 수 있다.
 
-> 📌 **Phase 2 (Claude Code CLI) 는 선택**: 본 가이드의 메인은 OpenClaw 입니다. Claude Code CLI 는 사람이 직접 Pi 에 SSH 들어가 *vibe-coding* 할 때만 필요하며, **OpenClaw 자체와는 무관한 별도 도구** 입니다. OpenClaw 만 쓸 거면 Phase 2 는 통째로 스킵해도 됩니다. ([04-integration §3](./04-integration.md#3-claude-code-cli-가-같이-있는-의미))
+> 📌 **Phase 2 (Claude CLI 위임 OAuth) 는 조건부 필수**: OpenClaw 의 인증 모드를 [Claude CLI 위임](./04-integration.md#1-두-인증-모드) 으로 갈 거면 (Claude Pro/Max 구독 활용) Phase 2 필수. API key (BYOK) 모드면 스킵 가능. ([04-integration §1](./04-integration.md#1-두-인증-모드))
 
 ---
 
@@ -14,10 +14,10 @@
 | 구간 | 예상 시간 |
 |---|---|
 | Phase 1 (사전 점검 + 부트스트랩) | 15–25 분 |
-| Phase 2 (Claude Code + OAuth) — **선택** | 5–10 분 |
+| Phase 2 (Claude CLI + OAuth) — **위임 모드 선택 시** | 5–10 분 |
 | Phase 3 (OpenClaw 설치 + onboard + 첫 동작) | 15–25 분 |
 | Phase 4 (운영 전환 — systemd) | 5–15 분 |
-| **총 (Phase 2 스킵 시 약 35–65 분, 포함 시 약 1시간)** | |
+| **총 (BYOK 모드면 약 35–65 분, 위임 모드면 약 1시간)** | |
 
 이후 (선택): 성능 튜닝 / 레시피 적용 / 추가 예제 활성화.
 
@@ -29,10 +29,10 @@
    ┌──────────── Phase 1 (필수) ─────────────┐
    README → docs/01 → bootstrap-pi.sh
                                               │
-   ┌──────────── Phase 2 (선택) ─────────────┘
+   ┌──────────── Phase 2 (위임 모드 선택 시) ┘
    install-claude-code.sh
-       → docs/02 + oauth-tunnel.sh + claude login
-       (사람이 직접 vibe-coding 할 때만 필요. OpenClaw 와 별개)
+       → claude /login (또는 claude setup-token 무인 운영)
+       (OpenClaw 가 OAuth 위임 모드로 호출. BYOK 모드면 스킵)
                                               │
    ┌──────────── Phase 3 (필수, 메인) ───────┘
    install-openclaw.sh
@@ -59,10 +59,10 @@
 
 `README.md` 의 **사전 지식 / 요구 사양 / 보안 · 운영 주의사항 / 알려진 제약** 섹션만 읽기.
 
-**필요한 자격증명** 미리 확인:
+**필요한 자격증명** 미리 확인 — 다음 둘 중 하나:
 
-- **(필수) BYOK 모델 API key 1개**: OpenClaw 가 직접 호출. 본 가이드 권장은 [Anthropic console](https://console.anthropic.com/) 의 API key (`sk-ant-...` 형태). OpenAI / Google 도 가능.
-- **(선택) Claude Pro/Max 구독**: Claude Code CLI 의 OAuth 용. **OpenClaw 가 직접 쓰지 않음** — 사람이 직접 vibe-coding 할 때만 필요. Phase 2 에 해당.
+- **(A) BYOK 모델 API key 1개**: OpenClaw 가 직접 호출. [Anthropic console](https://console.anthropic.com/) 의 API key (`sk-ant-...`), 또는 OpenAI / Google. 종량 과금.
+- **(B) Claude Pro/Max 구독**: 이미 구독자라면 OAuth 위임 모드로 추가 청구 없이 OpenClaw 운영. Phase 2 의 `claude /login` 으로 인증. ([04-integration §1](./04-integration.md#1-두-인증-모드) — 모드 선택 가이드)
 - **(선택) Telegram 봇 토큰**: 모바일에서 OpenClaw 에 메시지 보내는 채널. Phase 3 끝에 BotFather 로 만든다.
 
 ### 1-2. HW / OS 점검 — [`docs/01-prerequisites.md`](./01-prerequisites.md)
@@ -120,11 +120,11 @@ ls -d /home/dzp/dzp_main/program/openclaw-work    # 디렉토리 존재
 
 ---
 
-## Phase 2 — Claude Code + OAuth (선택, 스킵 가능)
+## Phase 2 — Claude CLI 위임 OAuth (Pro/Max 구독 활용 시)
 
-> 📌 **이 단계는 선택입니다.** 사람이 직접 SSH 들어가 `claude -p "..."` 로 vibe-coding 할 때만 필요. OpenClaw 만 쓸 거면 통째로 스킵하고 [Phase 3](#phase-3--openclaw--첫-동작-검증) 으로.
+> 📌 **이 단계는 인증 모드 (B) 선택자만**. OpenClaw 가 `agentRuntime.id: "claude-cli"` 모드로 `claude` 서브프로세스를 띄워 OAuth 호출 — 구독 한도 안에서 운영 가능. API key (BYOK) 모드면 스킵. ([04-integration §1](./04-integration.md#1-두-인증-모드))
 
-### 2-1. Claude Code CLI 설치
+### 2-1. Claude CLI 설치
 
 ```bash
 bash scripts/install-claude-code.sh
@@ -136,53 +136,41 @@ export PATH="$HOME/.npm-global/bin:$PATH"
 ✅ 체크:
 
 ```bash
-claude --version          # 정상 출력
-which claude              # ~/.npm-global/bin/claude (또는 PATH 의 다른 곳)
+claude --version          # 정상 출력 (2.1.x)
+which claude              # ~/.npm-global/bin/claude
 ```
 
 ❌ 실패 시: [`troubleshooting.md`](./troubleshooting.md) C1 (npm EACCES) / C3 (Node 버전) / **C6 (PATH 누락 — `claude: 명령어를 찾을 수 없음`)**.
 
-### 2-2. OAuth 1회 인증 — [`docs/02-claude-code-oauth.md`](./02-claude-code-oauth.md)
+### 2-2. OAuth 인증 — `claude /login`
 
-[`docs/02`](./02-claude-code-oauth.md) §1 ("본질") 만 먼저 읽고 (왜 SSH 트릭이 필요한지), 다음 절차:
+```bash
+claude                    # TUI 열기
+# TUI 안에서:
+/login                    # OAuth 플로우 시작 → URL 출력
+```
 
-1. **로컬 PC** 에서 SSH 세션을 새로 엶:
+출력된 URL 을 **로컬 PC 브라우저** 에 붙여넣기 → Anthropic 로그인 → 받은 코드/토큰을 Pi 의 TUI 에 붙여넣기. 성공 메시지 (`✓ Logged in as ...`) 확인 후 `/exit`.
 
-   ```bash
-   ssh -L 54545:localhost:54545 <user>@<pi-host>
-   ```
-
-2. **Pi** 에서 안내 출력 (선택):
-
-   ```bash
-   bash scripts/oauth-tunnel.sh
-   ```
-
-3. **Pi** 에서 인증:
-
-   ```bash
-   claude login
-   ```
-
-   출력된 `https://...` URL 을 **로컬 PC 브라우저** 에 붙여넣기 → Anthropic 로그인 → 콜백이 SSH 터널을 타고 Pi 에 도달.
-
-4. 권한 정리:
-
-   ```bash
-   chmod 700 ~/.claude
-   chmod 600 ~/.claude/credentials.json
-   ```
+> 💡 구버전 (CLI 2.0 이하) 은 SSH `-L` 역포트포워딩 콜백 모드 — 그땐 [`scripts/oauth-tunnel.sh`](../scripts/oauth-tunnel.sh) 참고. 2.1.x 는 코드 입력 모드라 SSH 트릭 불필요.
 
 ✅ 체크:
 
 ```bash
-ls -la ~/.claude/credentials.json     # 권한 600
-claude -p "say 'ok' and nothing else" # ok 한 단어
+ls -la ~/.claude/.credentials.json    # 권한 600
 ```
 
-❌ 실패 시: [`troubleshooting.md`](./troubleshooting.md) A절 (OAuth) — A1 콜백 안 옴 / A2 redirect_uri / A3 시계 동기화.
+### 2-3. (강력 권장) 무인 운영 — `claude setup-token` 으로 장기 토큰
 
-> ✅ **첫 결제·인증의 끝.** 이 이후는 토큰 만료 전까지 재인증 불필요.
+§2-2 의 OAuth access token TTL ≈ **8 시간**. 무인 24/7 운영이면 사람이 8 시간마다 재로그인하는 건 비현실 → 장기 토큰으로 우회:
+
+```bash
+claude setup-token        # 일회성 인터랙티브
+```
+
+이 모드는 access/refresh 사이클을 우회 → 만료 사실상 없음. `~/.claude/` 에 저장되고 OpenClaw 가 그대로 위임 사용. 자세한 절차 + 보안 트레이드오프는 [`docs/02 §3`](./02-claude-code-oauth.md#3-무인-운영--claude-setup-token-장기-토큰-강력-권장).
+
+> ✅ **여기까지 = Phase 2 끝.** OpenClaw 가 위임 모드에서 본 토큰을 사용한다. 만료/문제 진단은 `openclaw doctor` (모델 auth 절).
 
 ---
 
@@ -416,11 +404,18 @@ bash scripts/healthcheck.sh && echo "HC OK"      # 종료 코드 0 또는 2(warn
 
 추가로 [`README` 보안 절](../README.md#보안--운영-주의사항) 의 일반 Pi 위생 (SSH 하드닝, 방화벽, fail2ban).
 
-### 4-3. (선택) Claude Code CLI 와 연계하려면
-
-Phase 2 를 끝낸 사람만 해당. [`docs/04-integration §3`](./04-integration.md#3-claude-code-cli-가-같이-있는-의미) — 두 도구를 같이 쓰는 패턴 (OpenClaw 는 메시징 자율 응답, Claude Code 는 사람 vibe-coding).
-
 > ✅ **여기까지 = 운영 가동 완료.** OpenClaw 가 24/7 백그라운드에서 메시지에 응답하거나 cron 스킬을 돌립니다.
+
+### 4-3. (위임 모드) 토큰 만료 모니터링
+
+[Phase 2](#phase-2--claude-cli-위임-oauth-promax-구독-활용-시) 의 위임 모드를 쓴다면 `claude` 토큰 만료가 운영 침묵의 흔한 원인. `claude setup-token` 으로 장기 토큰을 받아두지 않았다면 access token 8h TTL 에 주의 — 헬스체크에 다음 체크 추가 권장:
+
+```bash
+openclaw doctor 2>&1 | grep -A3 'Model auth' | grep -q 'valid\|expiring' \
+  || echo "[ALERT] OpenClaw model auth not valid"
+```
+
+자세한 진단/복구는 [`docs/02 §4`](./02-claude-code-oauth.md#4-토큰-만료--재인증-3-안-쓸-때).
 
 ---
 
@@ -430,7 +425,7 @@ Phase 2 를 끝낸 사람만 해당. [`docs/04-integration §3`](./04-integratio
 |---|---|
 | 성능 / 발열 / 메모리 압박 잡기 | [`docs/06-performance-tuning.md`](./06-performance-tuning.md) |
 | 자율 코딩 루프 24/7 활성화 | [`recipes/auto-coding-loop.md`](../recipes/auto-coding-loop.md) |
-| 외부에서 Pi 조작 (모바일) | [`recipes/remote-vibe-coding.md`](../recipes/remote-vibe-coding.md) |
+| 외부에서 Pi 조작 (모바일) | [`recipes/remote-agent-control.md`](../recipes/remote-agent-control.md) |
 | cron / systemd timer 정기 작업 | [`recipes/scheduled-agent-tasks.md`](../recipes/scheduled-agent-tasks.md) |
 | 역할별 봇 분리 (트리아지/코더/리포터) | [`recipes/multi-agent-orchestration.md`](../recipes/multi-agent-orchestration.md) |
 | GPIO / MQTT 센서 통합 | [`recipes/iot-bridge.md`](../recipes/iot-bridge.md) |
@@ -443,7 +438,7 @@ Phase 2 를 끝낸 사람만 해당. [`docs/04-integration §3`](./04-integratio
 
 | 증상 카테고리 | 점프 |
 |---|---|
-| OAuth / 인증 / 토큰 (Claude Code) | [`troubleshooting.md`](./troubleshooting.md) **A절** |
+| OAuth / 인증 / 토큰 (OpenClaw 위임 모드 포함) | [`troubleshooting.md`](./troubleshooting.md) **A절** |
 | systemd 유닛 / 워치독 | **B절** |
 | npm / Node 빌드 / OpenClaw 설치 / PATH | **C절** |
 | OOM / throttle / 디스크 | **D절** |
@@ -460,8 +455,8 @@ Phase 2 를 끝낸 사람만 해당. [`docs/04-integration §3`](./04-integratio
 Phase 별로 끝났는지 빠르게 확인:
 
 - [ ] **P1 (필수)** `bash scripts/bootstrap-pi.sh` 통과 + `node --version` ≥ v22
-- [ ] **P2 (선택)** `claude -p "say ok"` → `ok` 출력 (스킵해도 무방)
-- [ ] **P3a (필수)** BYOK API key 발급 + `openclaw onboard --install-daemon` 종료 + `~/.openclaw/openclaw.json` 생성 + `gateway.bind` = `"loopback"`
+- [ ] **P2 (위임 모드 시 필수)** `claude` TUI → `/login` 성공 + `openclaw doctor` 의 Model auth 가 `valid` 또는 `expiring (Nh)`
+- [ ] **P3a (필수)** 인증 모드 선택 (BYOK 또는 위임) + `openclaw onboard --install-daemon` 종료 + `~/.openclaw/openclaw.json` 생성 + `gateway.bind` = `"loopback"`
 - [ ] **P3b (필수)** `systemctl --user is-active openclaw` = `active` + `examples/hello-agent` `run.sh` 종료 코드 0
 - [ ] **P3c (선택)** Telegram 봇 페어링 → 모바일에서 `hello` 보내면 `ok` 응답
 - [ ] **P4 (필수)** `systemctl --user is-enabled openclaw` = `enabled` + `loginctl Linger=yes` + `docs/07` 통독

@@ -12,7 +12,7 @@
 
 - [01 — Prerequisites](./01-prerequisites.md) 완료 + `bash scripts/bootstrap-pi.sh` 가 끝난 상태
 - Node.js **22.16+** (24 권장) 설치 — `node --version` 으로 확인
-- [02 — Claude Code OAuth](./02-claude-code-oauth.md) 인증은 *선택* — OpenClaw 는 BYOK 다중 모델 라우팅이라 Claude 가 필수는 아니다. 단 본 가이드의 기본 권장은 Anthropic Claude
+- [02 — Claude CLI OAuth](./02-claude-code-oauth.md) 는 **위임 모드 선택 시 필수**, BYOK API key 모드면 스킵 — onboard 마법사가 묻는다 ([04-integration §1](./04-integration.md#1-두-인증-모드))
 
 ---
 
@@ -186,21 +186,16 @@ openclaw agent --message "hello" --thinking high
 
 ---
 
-## 7. 권한 / 안전장치 — Claude Code 와의 관계
+## 7. 인증 — BYOK API key vs Claude CLI 위임
 
-OpenClaw 는 BYOK 로 여러 모델을 자체 라우팅한다. Anthropic Claude 를 primary 로 두면 OpenClaw 가 Claude API 를 직접 호출한다 — **Claude Code CLI 와는 별도 경로** 다.
+OpenClaw 의 두 가지 인증 모드 — onboard 마법사가 묻는다:
 
-[02 — Claude Code OAuth](./02-claude-code-oauth.md) 의 토큰은:
+| 모드 | 자격증명 위치 | 청구 | 본 챕터 다음 |
+|---|---|---|---|
+| **A. BYOK API key** | `~/.openclaw/openclaw.json` (또는 OS env) | 종량 | 별도 인증 절차 없음 |
+| **B. Claude CLI 위임 (OAuth)** | `~/.claude/.credentials.json` (claude CLI 가 관리) | 구독 + 추가 사용량 | [02 — Claude CLI OAuth](./02-claude-code-oauth.md) 의 `claude /login` 또는 `claude setup-token` |
 
-- 본 가이드의 *대화형 vibe-coding* 용 Claude Code CLI 호출에만 쓰인다 (예: `recipes/remote-vibe-coding`).
-- OpenClaw 가 모델로 부르는 Anthropic API 와는 다른 인증 경로 — OpenClaw 의 BYOK 는 자체 API key (또는 onboarding 으로 발급한 OAuth) 를 사용한다.
-
-따라서 본 호스트에는 두 종류의 자격증명이 공존할 수 있다:
-
-| 위치 | 용도 |
-|---|---|
-| `~/.claude/credentials.json` | Claude Code CLI 가 사용 (vibe-coding) |
-| `~/.openclaw/openclaw.json` (또는 OS env) | OpenClaw 가 모델 호출에 사용 |
+자세한 비교/선택 기준은 [`04-integration §1–2`](./04-integration.md#1-두-인증-모드). 위임 모드의 운영 함정 (8h 토큰 만료, "추가 사용량" 토글) 은 [02](./02-claude-code-oauth.md) 와 [troubleshooting A5–A8](./troubleshooting.md#a5-out-of-extra-usage--openclaw-가-anthropic-응답-거부-claude-max-인데도).
 
 ---
 
@@ -221,6 +216,6 @@ OpenClaw 의 셀링 포인트인 *자율 셸 실행 + 스킬 자가 생성* 은 
 ## 9. 다음 단계
 
 - [`examples/hello-agent`](../examples/hello-agent/) — 끝-끝 동작 검증 (체크포인트)
-- [04 — Integration](./04-integration.md) — Claude Code CLI 와의 관계, 채널 라우팅, 스킬 작성 패턴
+- [04 — Integration](./04-integration.md) — 두 인증 모드 비교, 호출 경로, 스킬 작성 패턴
 - [05 — Headless Ops](./05-headless-ops.md) — systemd 로 24/7 가동
 - [07 — Hardening](./07-openclaw-hardening.md) — 외부 노출 / reverse proxy / 자격증명 보호

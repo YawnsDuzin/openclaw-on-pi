@@ -178,7 +178,7 @@ openclaw config set agents.defaults.model.primary "anthropic/claude-haiku-4-5"
 systemctl --user restart openclaw-gateway     # 로드된 모델 갱신
 ```
 
-에이전트별 / 스킬별 오버라이드는 `agents.list[].model` 또는 SKILL.md frontmatter 에. Claude Code CLI (별개 도구) 도 `~/.claude/settings.json` 의 `"model"` 로 별도 핀.
+에이전트별 / 스킬별 오버라이드는 `agents.list[].model` 또는 SKILL.md frontmatter 에.
 
 > ⚠ Claude OAuth 구독 (Pro/Max) 으로 라우팅하는 경우, **`claude -p` 경로는 "추가 사용량" 풀에서 빌링**된다 (구독 한도 풀이 아님). claude.ai/settings/usage 의 추가 사용량 토글이 OFF 면 잔액 있어도 거부 — [troubleshooting A5](./troubleshooting.md#a5-out-of-extra-usage--openclaw-가-anthropic-응답-거부-claude-max-인데도) 참조.
 
