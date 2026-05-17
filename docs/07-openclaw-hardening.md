@@ -58,7 +58,7 @@ chmod 600 ~/.openclaw-secrets/env
 
 ## 3. 외부 노출이 필요한 경우 — reverse proxy 안전 절차
 
-본 가이드의 **권장 = 외부 노출 안 함**. 외부에서 Pi 에 접근하려면 [`recipes/remote-vibe-coding.md`](../recipes/remote-vibe-coding.md) 의 **Tailscale / WireGuard / SSH 터널** 방식을 사용. 그래도 reverse proxy 가 필요하면:
+본 가이드의 **권장 = 외부 노출 안 함**. 외부에서 Pi 에 접근하려면 [`recipes/remote-agent-control.md`](../recipes/remote-agent-control.md) 의 **Tailscale / WireGuard / SSH 터널** 방식을 사용. 그래도 reverse proxy 가 필요하면:
 
 ### 3-1. trustedProxies 명시
 

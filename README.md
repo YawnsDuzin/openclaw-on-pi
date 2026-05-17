@@ -21,7 +21,7 @@
 ## 왜 이걸 만드는가
 
 - 데스크탑/노트북 켜둘 필요 없이 **Pi 한 대로 자율 에이전트 상시 가동**
-- **BYOK 다중 모델 라우팅** — Anthropic / OpenAI / Google / Local 어느 쪽이든. Claude Pro/Max 구독자는 Claude Code CLI (vibe-coding) 를 같이 두면 두 도구 결합 효과
+- **BYOK 다중 모델 라우팅** — Anthropic / OpenAI / Google / Local 어느 쪽이든. Claude Pro/Max 구독자는 OAuth 위임 모드로 **구독 그대로 OpenClaw 운영** 가능
 - 엣지에서 GitHub PR 자동화, 로그 트리아지, IoT 모니터링 등 백그라운드 작업
 - **데이터 주권**: 세션·메시지·스킬·로그·자격증명을 클라우드 아닌 개인 디바이스에 보관
 
@@ -41,7 +41,9 @@
 
 ## TL;DR (요약 — 자세한 절차는 [quickstart](docs/00-quickstart.md) 참고)
 
-> ⚠️ **사전 준비**: [console.anthropic.com](https://console.anthropic.com/) 에서 API key 1개 발급 (`sk-ant-...`). 본 흐름의 3-2 에서 onboard 가 묻습니다.
+> ⚠️ **사전 준비** (둘 중 하나):
+> - **(A) BYOK API key**: [console.anthropic.com](https://console.anthropic.com/) 에서 발급 (`sk-ant-...`) — 종량 과금
+> - **(B) Claude Pro/Max 구독**: 이미 있다면 OAuth 위임 모드로 사용 가능 — `claude` CLI 가 위임 인프라
 
 ```bash
 # 0) 작업 베이스 디렉토리 (모든 단계 공통 — 사용자 dzp 기준)
@@ -53,16 +55,16 @@ git clone https://github.com/YawnsDuzin/openclaw-on-pi.git
 cd /home/dzp/dzp_main/program/openclaw-on-pi
 bash scripts/bootstrap-pi.sh
 
-# 2) (선택, 스킵 가능) Claude Code CLI — 사람이 직접 vibe-coding 할 때만.
-#    OpenClaw 자체와는 무관한 별도 도구.
+# 2) (옵션 B 사용 시) Claude CLI 설치 + OAuth — OpenClaw 가 위임 호출용으로 사용
 bash scripts/install-claude-code.sh
 export PATH="$HOME/.npm-global/bin:$PATH"
-# OAuth 1회: bash scripts/oauth-tunnel.sh → 로컬 PC 에서 SSH -L → claude login
+claude                                          # TUI → /login (한 번)
+#   또는 무인 운영: claude setup-token (장기 토큰, 권장)
 
-# 3) OpenClaw 설치 + 대화형 온보딩 (BYOK API key / Gateway / systemd user 유닛)
-export PATH="$HOME/.npm-global/bin:$PATH"     # Phase 2 스킵했으면 필수
+# 3) OpenClaw 설치 + 대화형 온보딩 (인증/Gateway/systemd user 유닛)
+export PATH="$HOME/.npm-global/bin:$PATH"
 bash scripts/install-openclaw.sh
-openclaw onboard --install-daemon              # 마법사가 API key 등을 물어봄
+openclaw onboard --install-daemon              # 마법사가 인증 모드/모델 등을 물어봄
 
 # 4) Gateway 활성화 + 끝-끝 검증 (hello 스킬)
 systemctl --user start openclaw
@@ -91,7 +93,9 @@ jq '.gateway.host, .gateway.bind' ~/.openclaw/openclaw.json   # "127.0.0.1" / "l
 
 - Linux 셸 기본 (`ssh`, `systemd`, `cron`, `tmux`)
 - Raspberry Pi OS 또는 Ubuntu Server 설치·플래싱 경험
-- **BYOK 모델 자격증명 1개 이상** (OpenClaw 가 호출). 본 가이드 권장: Anthropic API key (console.anthropic.com 에서 발급). 단, **Claude Pro/Max 구독은 OpenClaw 가 *직접 쓰지 않는다*** — 구독은 Claude Code CLI 의 OAuth 용 (vibe-coding). 비용 구조는 [비용 · 전력 가늠](#비용--전력-가늠) 참고
+- **모델 자격증명** (둘 중 하나):
+  - **API key (BYOK)** — Anthropic / OpenAI / Google 등에서 발급, 종량 과금
+  - **Claude Pro/Max 구독** — `claude` CLI 의 OAuth 를 OpenClaw 가 위임 사용 (sanctioned by Anthropic). 구독 한도 안에서 운영, 단 `claude -p` 경로는 "추가 사용량" 풀 빌링이라 claude.ai 의 토글 ON 필요 ([02 §1](docs/02-claude-code-oauth.md#1-두-인증-모드--어느-쪽), [troubleshooting A5](docs/troubleshooting.md#a5-out-of-extra-usage--openclaw-가-anthropic-응답-거부-claude-max-인데도))
 - Git / GitHub 사용 경험
 
 ---
@@ -108,7 +112,7 @@ openclaw-on-pi/
 ├── docs/                             # 학습 순서대로 번호 부여
 │   ├── 00-quickstart.md              # 처음 사용자 — 위에서 아래로 약 1시간
 │   ├── 01-prerequisites.md           # Pi 하드웨어, OS, 네트워크, 패키지
-│   ├── 02-claude-code-oauth.md       # 헤드리스 Claude Code OAuth (vibe-coding 용)
+│   ├── 02-claude-code-oauth.md       # OpenClaw 의 Claude CLI 위임 OAuth (Pro/Max 구독 사용 시)
 │   ├── 03-openclaw-install.md        # OpenClaw 설치 (npm) · onboard · 첫 동작
 │   ├── 04-integration.md             # BYOK 라우팅, Claude Code 와의 관계
 │   ├── 05-headless-ops.md            # tmux, systemd, 원격 운용, 로그 수집
@@ -118,7 +122,7 @@ openclaw-on-pi/
 │
 ├── recipes/                          # 시나리오별 활용 레시피
 │   ├── auto-coding-loop.md           # 자율 코딩 루프 24/7
-│   ├── remote-vibe-coding.md         # 외부에서 Pi 에이전트 조작
+│   ├── remote-agent-control.md       # 외부에서 Pi 에이전트 원격 조작
 │   ├── scheduled-agent-tasks.md      # cron + 에이전트
 │   ├── multi-agent-orchestration.md  # 여러 OpenClaw 인스턴스 분업
 │   └── iot-bridge.md                 # 에이전트가 IoT 센서/GPIO 다루기
@@ -132,8 +136,6 @@ openclaw-on-pi/
 │
 ├── configs/
 │   ├── openclaw.example.json5        # OpenClaw 설정 (JSON5) — ~/.openclaw/openclaw.json
-│   ├── claude-code-settings.example.json
-│   ├── CLAUDE.example.md             # Claude Code 가 참조할 컨텍스트 템플릿
 │   └── systemd/
 │       ├── openclaw.service
 │       └── openclaw-watchdog.service
@@ -184,21 +186,33 @@ openclaw-on-pi/
 │   │                 │  ── skills    ~/.openclaw/skills/*    │
 │   └────┬──────┬─────┘     (SKILL.md frontmatter + body)     │
 │        │      │                                             │
-│   ┌────▼──┐  ┌▼──────────────┐   ┌─────────────────────┐    │
-│   │ BYOK  │  │ Channels      │   │ Claude Code CLI     │    │
-│   │ 모델   │  │ (Telegram/    │   │ (선택, vibe-coding) │   │
-│   │ 라우팅│  │  Discord/...) │   │ ~/.claude/creds     │    │
-│   └───┬───┘  └────┬──────────┘   └────────┬────────────┘    │
-└───────┼───────────┼──────────────────────-┼────────────────-┘
-        ▼           ▼                       ▼
-   Anthropic /   메시징 플랫폼          Anthropic (별도 OAuth,
-   OpenAI / ...                          본 저장소 가이드의 대화형용)
+│   ┌────▼──┐  ┌▼──────────────┐                              │
+│   │ 모델  │  │ Channels      │                              │
+│   │ 라우팅│  │ (Telegram/    │                              │
+│   │       │  │  Discord/...) │                              │
+│   └───┬───┘  └────┬──────────┘                              │
+└───────┼───────────┼─────────────────────────────────────────┘
+        │           ▼
+        │      메시징 플랫폼
+        │
+   ┌────┴─────────────────────────────┐
+   │ 인증 모드 (onboard 마법사가 선택)│
+   ├──────────────────────────────────┤
+   │ A) API key (BYOK) → 종량 과금    │
+   │    ~/.openclaw/openclaw.json     │
+   │                                  │
+   │ B) Claude CLI 위임 → 구독 활용   │
+   │    spawn(claude -p) → OAuth      │
+   │    ~/.claude/.credentials.json   │
+   └────┬─────────────────────────────┘
+        ▼
+   Anthropic / OpenAI / Google / ...
 ```
 
-**두 가지 인증 경로** 가 공존:
+**인증 경로 = 둘 중 하나** (onboard 시 선택):
 
-- `~/.openclaw/openclaw.json` — OpenClaw 가 BYOK 다중 모델 라우팅에 사용 (Anthropic API key 또는 다른 provider)
-- `~/.claude/credentials.json` — Claude Code CLI 가 별도로 사용 (사람이 직접 `claude` 명령으로 vibe-coding 할 때)
+- **A. API key (BYOK)** — `~/.openclaw/openclaw.json` 에 직접. Anthropic / OpenAI / Google 등 어느 provider 든. 종량 과금.
+- **B. Claude CLI 위임 (OAuth)** — `~/.claude/.credentials.json` 의 OAuth 를 OpenClaw 가 `claude -p` 서브프로세스로 활용. 기존 Pro/Max 구독 그대로 사용 가능. ⚠ "추가 사용량" 토글 + 8h 토큰 만료 운영 함정 ([02](docs/02-claude-code-oauth.md)).
 
 OpenClaw 의 *주* 인터페이스는 **메시징 채널**: 사용자가 Telegram/Discord 봇에 메시지 → OpenClaw 가 적합한 스킬 매칭 (XML 시스템 프롬프트 주입 또는 슬래시 명령) → 도구 (셸/파일/브라우저/세션) 사용 → 결과를 채널로 회신.
 
@@ -226,7 +240,7 @@ OpenClaw 의 *주* 인터페이스는 **메시징 채널**: 사용자가 Telegra
 | 상태 | 레시피 |
 |:-:|---|
 | ⚠ | [자율 코딩 루프 24/7](recipes/auto-coding-loop.md) |
-| ⚠ | [외부에서 Pi 에이전트 조작 (Remote vibe-coding)](recipes/remote-vibe-coding.md) |
+| ⚠ | [외부에서 Pi 에이전트 원격 조작](recipes/remote-agent-control.md) |
 | ⚠ | [cron 기반 스케줄 작업](recipes/scheduled-agent-tasks.md) |
 | ⚠ | [멀티 에이전트 오케스트레이션](recipes/multi-agent-orchestration.md) |
 | ⚠ | [IoT 브릿지 — GPIO / MQTT 다루기](recipes/iot-bridge.md) |
@@ -274,13 +288,13 @@ OpenClaw 는 **BYOK 다중 모델 라우팅** 이라 비용 구조가 두 갈래
 
 | 항목 | 추정값 | 적용처 |
 |---|---|---|
-| **OpenClaw 의 모델 호출** (Anthropic API 등) | 토큰 사용량 비례 (Sonnet ≈ $3/M input · $15/M output) | OpenClaw 의 자율 에이전트 / 스킬 호출 |
-| Claude Pro 구독 | $20/월 | (선택) Claude Code CLI 의 OAuth — 사람이 직접 vibe-coding |
-| Claude Max 구독 | $100 ~ $200/월 | 마찬가지 — Claude Code CLI 만 사용 |
+| **A. BYOK API key 모델 호출** | 토큰 사용량 비례 (Sonnet ≈ $3/M input · $15/M output) | OpenClaw 의 자율 에이전트 / 스킬 호출. 가벼운 개인 사용 월 $5–20, 자율 코딩 루프 월 $50+ |
+| **B. Claude Pro 구독** | $20/월 | OAuth 위임 모드 — 구독 한도 + 추가 사용량 풀 안에서 OpenClaw 운영 |
+| **B. Claude Max 구독** | $100 ~ $200/월 | 동일 — 5x 한도, 헤비 워크로드 안전선 |
 | Pi 5 (8GB) 평균 소비 전력 | 5–8W (부하 시 ~10W) | — |
 | 월 전기 요금 (한국 가정용, 24/7) | ≈ 1,000–2,000 원 | — |
 
-> **중요**: Claude Pro/Max 구독은 OpenClaw 의 자율 호출을 *대체하지 않습니다*. OpenClaw 가 모델을 부를 때마다 BYOK API key 의 사용량으로 과금됩니다. 가벼운 개인 사용 (하루 수십 회 호출) 이면 월 $5–20 수준, 자율 코딩 루프 같은 헤비 워크로드는 월 $50+ 도 가능. [recipes/auto-coding-loop](recipes/auto-coding-loop.md) 의 cron 빈도와 변경 라인 가드로 비용 제어. 다중 에이전트로 한도를 초과하면 BYOK provider 가 스로틀링.
+> **모드 선택**: **A** (BYOK) 는 종량 과금이라 사용량 추적/예산 통제가 쉽고 결제 라인이 깔끔. **B** (OAuth 위임) 는 이미 구독자라면 추가 청구 없이 운영 가능하지만 (1) `claude -p` 경로는 **"추가 사용량" 풀에서 빌링** — claude.ai 의 토글 ON 필요, (2) access token 8h TTL — 무인 운영 시 `claude setup-token` 으로 장기 토큰 권장 ([02 §3](docs/02-claude-code-oauth.md#3-무인-운영--claude-setup-token-장기-토큰-강력-권장)). 다중 에이전트로 한도 초과 시 어느 쪽이든 스로틀링.
 
 ---
 
@@ -299,10 +313,10 @@ OpenClaw 는 **BYOK 다중 모델 라우팅** 이라 비용 구조가 두 갈래
 ## FAQ
 
 **Q. Claude 구독만 있으면 OpenClaw 가 돌아가나요?**
-A. **아니요.** OpenClaw 는 BYOK 라 자체적으로 API key (예: Anthropic console 의 API key) 를 받아 호출합니다. Claude Pro/Max 구독은 OpenClaw 의 호출과는 *별개 경로* 인 Claude Code CLI (사람이 직접 vibe-coding) 용으로만 의미가 있습니다. 본 Pi 에 두 도구가 공존하지만 인증·과금 경로가 다릅니다 — [`docs/04-integration.md §3`](docs/04-integration.md#3-claude-code-cli-가-같이-있는-의미) 참고.
+A. **네, 조건부 가능합니다** (1차 라운드 가정 정정 — 2026-05-17 Pi 검증). OpenClaw 는 `agentRuntime.id: "claude-cli"` 모드일 때 로컬 `claude` CLI 를 서브프로세스로 띄워 그쪽의 OAuth 로 Anthropic 을 호출합니다. [OpenClaw 공식 docs](https://docs.openclaw.ai/concepts/oauth) 가 이 사용을 sanctioned 모드로 명시 (*"Anthropic staff told us this usage is allowed again"*). 단 두 함정: (1) `claude -p` 경로는 "추가 사용량" 풀 빌링이라 claude.ai 의 토글 ON 필요, (2) access token 8h TTL — 무인 운영은 `claude setup-token` 장기 토큰. 자세한 절차는 [`docs/02-claude-code-oauth.md`](docs/02-claude-code-oauth.md).
 
 **Q. 그럼 OpenClaw 비용은 얼마나 나오나요?**
-A. BYOK provider 의 토큰 가격 × 호출량. 본 가이드 권장 `anthropic/claude-sonnet-4-6` 기준 가벼운 개인 사용은 월 $5–20, 자율 코딩 루프는 월 $50+ 수준. [비용 · 전력 가늠](#비용--전력-가늠) 표 + recipes 의 cron 빈도·변경 라인 가드로 제어.
+A. 인증 모드에 따라 다름. **BYOK** 모드는 provider 의 토큰 가격 × 호출량 (Sonnet 권장, 가벼운 개인 사용 월 $5–20, 자율 코딩 루프 월 $50+). **OAuth 위임** 모드는 Claude Pro $20 또는 Max $100~$200 구독료 안에서 운영 (추가 사용량 풀 + 구독 한도 안에서). [비용 · 전력 가늠](#비용--전력-가늠) 표 참고.
 
 **Q. macOS / Windows / 일반 리눅스 서버에서도 되나요?**
 A. 됩니다. 본 가이드는 **ARM64 + 헤드리스** 라는 가장 까다로운 조합을 전제로 합니다. 다른 환경에서는 SSH 트릭 등이 단순화됩니다.
@@ -311,7 +325,7 @@ A. 됩니다. 본 가이드는 **ARM64 + 헤드리스** 라는 가장 까다로�
 A. 비권장. Node 22+ 런타임 · 메모리 · 발열 측면에서 안정 구동이 어렵습니다.
 
 **Q. 외부에서 Pi 에이전트를 조작할 수 있나요?**
-A. 가능합니다. 가장 자연스러운 경로는 OpenClaw 의 Telegram 봇에 메시지 → 자동 응답. [`recipes/remote-vibe-coding.md`](recipes/remote-vibe-coding.md) 참고.
+A. 가능합니다. 가장 자연스러운 경로는 OpenClaw 의 Telegram 봇에 메시지 → 자동 응답. [`recipes/remote-agent-control.md`](recipes/remote-agent-control.md) 참고.
 
 **Q. OpenClaw 가 자가 스킬 생성을 한다는데, 안전한가요?**
 A. 그것이 가장 큰 셀링 포인트이자 가장 큰 위험입니다. ClawHub 에 2026-01 이후 230+ 악성 스킬이 올라왔고, 인기 1위 스킬에서도 데이터 외부 유출이 적발됐습니다. **자동 설치 금지** + 모든 외부 스킬은 사람 리뷰 후에만 — [`docs/07 §4`](docs/07-openclaw-hardening.md#4-스킬-clawhub-안전-정책).
@@ -319,8 +333,8 @@ A. 그것이 가장 큰 셀링 포인트이자 가장 큰 위험입니다. ClawH
 **Q. BYOK API key 가 만료/한도 초과되면?**
 A. OpenClaw 응답이 401/429 로 실패. healthcheck.sh 가 BYOK key 자체의 만료까지는 못 보지만 gateway 응답 / 모델 호출 실패는 감지. 정기적으로 console.anthropic.com 에서 사용량 확인.
 
-**Q. Claude Code CLI 의 OAuth 토큰이 만료되면?**
-A. (vibe-coding 만 영향) 수동 재인증 필요. 자동 갱신은 로드맵.
+**Q. OAuth 위임 모드에서 `claude` 토큰이 만료되면?**
+A. OpenClaw 의 자율 호출도 침묵합니다 (`No credentials found for profile "anthropic:claude-cli"`). access token TTL 약 8 시간 — `claude /login` 으로 재인증 또는 `claude setup-token` 장기 토큰으로 우회. 자세한 진단/복구는 [`docs/02 §4`](docs/02-claude-code-oauth.md#4-토큰-만료--재인증-3-안-쓸-때) + [`troubleshooting A6`](docs/troubleshooting.md#a6-no-credentials-found-for-profile-anthropicclaude-cli-실제로는-만료).
 
 ---
 

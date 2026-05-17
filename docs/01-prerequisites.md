@@ -1,6 +1,6 @@
 # 01 — Prerequisites
 
-> 라즈베리파이에서 **OpenClaw** 를 24/7 안전하게 돌리기 위한 하드웨어 · OS · 패키지 · 네트워크 사전 조건. (Claude Code CLI 는 선택 — Phase 2)
+> 라즈베리파이에서 **OpenClaw** 를 24/7 안전하게 돌리기 위한 하드웨어 · OS · 패키지 · 네트워크 사전 조건. (Claude CLI 위임 OAuth 모드 사용 시 Phase 2 추가)
 >
 > 처음 사용자는 [`00-quickstart.md`](./00-quickstart.md) 를 먼저 펼쳐놓고 본 문서는 Phase 1 의 참조로 사용하세요.
 
@@ -118,7 +118,7 @@ sudo ufw enable
 sudo ufw status verbose
 ```
 
-OAuth 콜백 시 일시적으로 사용자 단의 SSH 역포트포워딩 (`-L`) 만 사용하므로 방화벽 규칙 추가 불필요.
+Claude CLI 2.1.x 의 `/login` 은 코드 입력 모드라 SSH 역포트포워딩 불필요. 구버전 사용 시에만 사용자 단의 `-L` 일시 적용으로 콜백 수신.
 
 자세한 보안 가이드는 README 의 "보안 · 운영 주의사항" 절을 참고.
 
@@ -126,7 +126,9 @@ OAuth 콜백 시 일시적으로 사용자 단의 SSH 역포트포워딩 (`-L`) 
 
 ## 6. 사전 계정 / 자격증명
 
-### 6-1. (필수) BYOK 모델 API key — OpenClaw 가 직접 호출
+OpenClaw 인증은 둘 중 하나 — onboard 마법사가 묻습니다 ([04-integration §1](./04-integration.md#1-두-인증-모드)). 어느 쪽이든 사전 발급/구독은 본 단계에서 준비.
+
+### 6-1. (A) BYOK 모델 API key — 종량 과금
 
 본 가이드 권장: **Anthropic API key**.
 
@@ -137,10 +139,12 @@ OAuth 콜백 시 일시적으로 사용자 단의 SSH 역포트포워딩 (`-L`) 
 
 OpenAI / Google / xAI 등 다른 provider 도 가능 — 각 console 에서 발급, OpenClaw 의 `agents.defaults.model.primary` 를 해당 provider 로 지정.
 
-### 6-2. (선택) Claude Pro 또는 Max 구독 — Claude Code CLI 의 OAuth 용
+### 6-2. (B) Claude Pro 또는 Max 구독 — OAuth 위임 모드
 
-- **OpenClaw 가 직접 쓰는 것이 아닙니다.** 사람이 Pi 에 SSH 들어가 `claude -p "..."` 로 vibe-coding 할 때만 의미.
-- OpenClaw 만 쓸 거면 스킵.
+- 이미 Pro/Max 구독자라면 OpenClaw 가 `agentRuntime.id: "claude-cli"` 모드로 OAuth 위임 사용 가능 (sanctioned by Anthropic).
+- 추가 청구 없음, 구독 한도 + claude.ai 의 "추가 사용량" 풀 안에서 운영.
+- Phase 2 의 `claude /login` (또는 무인 운영 시 `claude setup-token`) 으로 인증.
+- 주의: `claude -p` 경로는 추가 사용량 풀에서 빌링 — claude.ai/settings/usage 의 토글 ON 필요 ([troubleshooting A5](./troubleshooting.md#a5-out-of-extra-usage--openclaw-가-anthropic-응답-거부-claude-max-인데도)).
 
 ### 6-3. (조건부) GitHub 계정 + PAT
 
@@ -159,5 +163,5 @@ NTP 가 죽어 있으면 BYOK provider 의 API 호출에서 TLS 인증서 검증
 
 ## 다음
 
-- [02 — Claude Code OAuth (헤드리스 인증)](./02-claude-code-oauth.md)
+- [02 — Claude CLI OAuth (위임 모드 사용 시)](./02-claude-code-oauth.md)
 - [03 — OpenClaw 설치](./03-openclaw-install.md)

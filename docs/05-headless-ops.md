@@ -67,7 +67,7 @@ sudo -u openclaw -H bash -lc '
 sudo ls -la /opt/openclaw/.openclaw/
 ```
 
-OAuth 토큰을 openclaw 사용자가 별도로 받으려면 [02 — Claude Code OAuth](./02-claude-code-oauth.md) 절차를 `sudo -u openclaw -H` 컨텍스트에서 한 번 더. 또는 본인 사용자의 `~/.claude/credentials.json` 을 복사 (보안 트레이드오프).
+**Claude CLI 위임 모드 (`agentRuntime.id: "claude-cli"`)** 라면, 새 openclaw 사용자도 자체 OAuth 가 필요 — `sudo -u openclaw -H` 컨텍스트에서 [02 — Claude CLI OAuth 위임](./02-claude-code-oauth.md) 절차를 한 번 더. 또는 본인 사용자의 `~/.claude/.credentials.json` 을 복사 (보안 트레이드오프). API key (BYOK) 모드면 이 단계 불필요.
 
 > 시스템 모드는 격리가 더 강하지만 onboard 절차를 두 번 (user 검증 + 시스템 설치) 거쳐야 한다. 1인 운영이면 user 모드가 단순.
 
@@ -178,7 +178,7 @@ sudo ufw delete allow 22/tcp
 - [Cloudflare Tunnel](https://www.cloudflare.com/products/tunnel/) — TCP 접근 가능
 - 자체 [WireGuard](https://www.wireguard.com/) — 완전한 통제권
 
-자세한 설정은 [`recipes/remote-vibe-coding`](../recipes/remote-vibe-coding.md) 참고.
+자세한 설정은 [`recipes/remote-agent-control`](../recipes/remote-agent-control.md) 참고.
 
 ---
 

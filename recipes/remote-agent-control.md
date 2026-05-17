@@ -1,10 +1,10 @@
-# Recipe — 외부에서 Pi 에이전트 조작 (Remote Vibe-Coding)
+# Recipe — 외부에서 Pi 에이전트 원격 조작
 
 > 외출/이동 중에 휴대폰 또는 노트북에서 Pi 의 OpenClaw 에 작업을 던지고 결과를 확인한다.
 
 ⚠ 검증 환경: OpenClaw ≥ 2026.2.6 + Telegram (또는 다른 메시징 채널) + 선택적으로 Tailscale 메시 VPN.
 
-> 📜 2026-05-16 재작성 라운드 — OpenClaw 는 본질적으로 메시징 게이트웨이라 **모바일 채팅 앱 = 자연스러운 remote vibe-coding UI**. SSH 는 비상용.
+> 📜 OpenClaw 는 본질적으로 메시징 게이트웨이라 **모바일 채팅 앱 = 자연스러운 원격 에이전트 UI**. SSH 는 비상용.
 
 ---
 
