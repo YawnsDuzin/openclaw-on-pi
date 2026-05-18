@@ -118,6 +118,7 @@ openclaw-on-pi/
 │   ├── 05-headless-ops.md            # tmux, systemd, 원격 운용, 로그 수집
 │   ├── 06-performance-tuning.md      # ARM64, 스왑, NVMe, 쿨링
 │   ├── 07-openclaw-hardening.md      # CVE / gateway 보안 / 스킬 리뷰 / 사고 대응
+│   ├── 08-configuration.md           # openclaw.json 설정 키 reference + 변경 방법
 │   └── troubleshooting.md            # 자주 깨지는 지점들
 │
 ├── recipes/                          # 시나리오별 활용 레시피
@@ -230,6 +231,7 @@ OpenClaw 의 *주* 인터페이스는 **메시징 채널**: 사용자가 Telegra
 | 05 | [Headless Ops](docs/05-headless-ops.md) | ⚠ | tmux · systemd · 원격 |
 | 06 | [Performance](docs/06-performance-tuning.md) | ⚠ | ARM64 · 스왑 · NVMe |
 | 07 | [**OpenClaw Hardening**](docs/07-openclaw-hardening.md) | ⚠ | **CVE · gateway 보안 · 스킬 리뷰 · 사고 대응 (운영 전 필독)** |
+| 08 | [Configuration Reference](docs/08-configuration.md) | ⚠ | `openclaw.json` 모든 키 설명 + 변경 방법 (onboard / configure / config set / 직접 편집) |
 | ⚠ | [Troubleshooting](docs/troubleshooting.md) | ⚠ | 자주 깨지는 지점들 |
 | 📋 | [설계 / 작성 계획](docs/superpowers/specs/2026-05-16-openclaw-on-pi-design.md) | ✅ | 본 저장소의 단계별 작성 plan |
 

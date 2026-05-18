@@ -88,6 +88,8 @@ ls -la ~/.openclaw/
 
 > 🚨 **반드시 변경**: `gateway.auth.token` / `hooks.token` / `channels.*.botToken` 은 본 파일에 평문 쓰지 말고 OS env / systemd `EnvironmentFile` 로 주입. OpenClaw 는 `~/.openclaw/` 하위에 자격증명을 *평문* 저장한다 — 머신 침해 시 모든 연결 계정이 노출된다.
 
+> 📖 **전체 키 reference**: 위 표는 핵심만. `agents.list[]` (다중 에이전트) / `cron.jobs[]` / `hooks` / `browser.ssrfPolicy` / `commands.ownerAllowFrom` / `logging` 등 모든 키의 의미와 권장값은 [**docs/08-configuration.md**](./08-configuration.md) 참고.
+
 ---
 
 ## 5. 메시징 채널 연결 — Telegram 예시 (선택)
